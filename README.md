@@ -92,12 +92,11 @@ npm run dev           # runs on http://localhost:3000
 
 ## Default Accounts (from seed)
 
-- Admin: email `admin@test.com`, password `admin123`
-- Lecturer: email `lecturer@test.com`, password `lecturer123`
+- Admin: `admin`, password `pass123`
+- Lecturer: `lecturer`, password `pass123`
 - Students (100):
-  - Email range: `student523H0001@test.com` to `student523H0100@test.com`
+  - MSSV: `523H0001` to `523H0100`
   - Password: `pass123`
-  - Student codes: `523H0001` to `523H0100`
 
 ## Key Features
 
