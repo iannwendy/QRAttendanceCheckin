@@ -1,0 +1,164 @@
+.scan-page {
+  min-height: 100vh;
+  padding: 20px;
+  background: #f5f5f5;
+}
+
+.scan-container {
+  max-width: 640px;
+  margin: 0 auto;
+  background: white;
+  padding: 28px;
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+}
+
+.scan-container h1 {
+  text-align: left;
+  margin: 0 0 16px 0;
+  color: #111827;
+  line-height: 1.2;
+}
+
+.location-warning {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  padding: 15px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+
+.location-warning a {
+  display: block;
+  margin-top: 10px;
+  color: #007bff;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.location-info {
+  background: #d1ecf1;
+  border: 1px solid #bee5eb;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+.location-info p {
+  margin: 5px 0;
+}
+
+.qr-reader {
+  width: 100%;
+  max-width: 520px;
+  margin: 20px auto;
+  border: 2px solid #ddd;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.scan-button {
+  width: 100%;
+  padding: 15px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 20px;
+}
+
+.scan-button.stop {
+  background: #dc3545;
+}
+
+.scan-button:hover {
+  opacity: 0.9;
+}
+
+/* Small logout button in header (not full width) */
+.logout-button {
+  padding: 10px 16px;
+  background: #dc3545;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.logout-button:hover {
+  opacity: 0.95;
+}
+
+/* Mobile responsive tweaks */
+@media (max-width: 480px) {
+  .scan-page {
+    padding: 12px;
+    background: #ffffff;
+  }
+  .scan-container {
+    padding: 18px 16px;
+    border-radius: 12px;
+    box-shadow: none;
+  }
+  .scan-container h1 {
+    font-size: 24px;
+    text-align: left;
+  }
+  .location-info, .location-warning {
+    font-size: 13px;
+    padding: 12px;
+  }
+  .qr-reader {
+    margin: 12px 0 8px 0;
+    border-width: 1px;
+  }
+  .scan-button {
+    padding: 14px;
+    font-size: 16px;
+  }
+  .logout-button {
+    padding: 8px 14px;
+    font-size: 14px;
+  }
+  .otp-link { font-size: 15px; }
+}
+
+.error-message {
+  color: #dc3545;
+  margin-top: 15px;
+  padding: 10px;
+  background: #f8d7da;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.success-message {
+  color: #155724;
+  margin-top: 15px;
+  padding: 10px;
+  background: #d4edda;
+  border-radius: 4px;
+  text-align: center;
+  font-weight: 500;
+}
+
+.scan-actions {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.otp-link {
+  color: #007bff;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.otp-link:hover {
+  text-decoration: underline;
+}
+

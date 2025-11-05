@@ -1,0 +1,142 @@
+.create-session-page {
+  min-height: 100vh;
+  padding: 24px;
+  background: linear-gradient(180deg, #ffffff 0%, #eef5ff 100%);
+}
+
+.create-session-container {
+  max-width: 880px;
+  margin: 0 auto;
+  background: var(--surface);
+  padding: 28px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+}
+
+.create-session-container h1 {
+  margin: 0 0 20px 0;
+  color: #111827;
+}
+
+.session-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  font-weight: 500;
+  color: #333;
+  font-size: 14px;
+}
+
+.form-group input {
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 16px;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.form-section {
+  margin-top: 10px;
+  padding-top: 16px;
+  border-top: 1px dashed #e5e7eb;
+}
+
+.form-section h3 {
+  margin: 0 0 15px 0;
+  color: #333;
+  font-size: 16px;
+}
+
+.location-button {
+  padding: 10px 16px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-700));
+  color: white;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-bottom: 15px;
+}
+
+.location-button:hover {
+  background: #0056b3;
+}
+
+.error-message {
+  padding: 12px;
+  background: #f8d7da;
+  color: #721c24;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  align-items: center; /* ensure buttons align vertically */
+  margin-top: 20px;
+}
+
+.cancel-button,
+.submit-button {
+  padding: 12px 20px;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  min-width: 160px;
+  width: 200px; /* force equal width */
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 52px; /* force equal height */
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.cancel-button {
+  background: #6b7280;
+  color: white;
+}
+
+.cancel-button:hover {
+  background: #52525b;
+}
+
+.submit-button {
+  background: #16a34a;
+  color: white;
+}
+
+.submit-button:hover:not(:disabled) {
+  background: #15803d;
+}
+
+.submit-button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+

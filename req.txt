@@ -1,0 +1,322 @@
+Bạn là một **Senior Full-Stack Engineer**. Hãy tạo **một repo monorepo** gồm **backend (NestJS + Prisma + PostgreSQL)** và **frontend (React + Vite)** theo yêu cầu dưới đây, kèm **Docker Compose**, **seed data**, và **hướng dẫn chạy**. Ưu tiên code sạch, tách module rõ ràng, có middlewares/guards, type an toàn.
+
+## 0) Mục tiêu & hành vi cốt lõi
+
+* Hệ thống điểm danh:
+
+  * **Mặc định**: Check-in bằng **QR token động (60s)** + **GPS** (geofence).
+  * **Fallback**: **OTP tại lớp (TOTP 30–60s)** + **Ảnh chụp có watermark** (MSSV, sessionId, OTP, timestamp).
+* Không cần deploy phức tạp. **Test trên điện thoại qua Tunnel (Cloudflare/ngrok)**: đảm bảo **HTTPS** để camera hoạt động.
+* **Auth = JWT** (header `Authorization: Bearer`), roles: `student`, `lecturer`, `admin`.
+
+---
+
+## 1) Kiến trúc & thư mục
+
+```
+/qr-attendance/
+  /backend/ (NestJS + Prisma)
+    /src/
+      /auth
+      /users
+      /classes
+      /sessions
+      /attendance
+      /evidence
+      /common
+    prisma/schema.prisma
+    .env.example
+  /frontend/ (React + Vite + TS)
+    /src/
+      /app (router)
+      /features/auth
+      /features/scan
+      /features/otp
+      /features/camera
+      /features/teacher
+      /components
+    .env.example
+  docker-compose.yml
+  README.md
+```
+
+---
+
+## 2) TechStack & thư viện
+
+* Backend: **NestJS**, **Prisma**, **PostgreSQL**, **class-validator**, **@nestjs/jwt**, **otplib** (TOTP), **qrcode** (server gen QR string), **multer** (upload), **sharp** (tuỳ chọn xử lý ảnh server – mặc định watermark ở client).
+* Frontend: **React + Vite + TS**, **axios**, **zustand** (state), **react-router-dom**, **html5-qrcode** hoặc `@yudiel/react-qr-scanner` (quét QR), **canvas** (tự vẽ watermark), **dayjs**.
+* Dev tunnel: Cloudflare/ngrok (chỉ ghi hướng dẫn trong README, không cần code).
+
+---
+
+## 3) Database (Prisma – PostgreSQL)
+
+Tạo schema tối giản đủ chạy:
+
+```prisma
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  fullName     String
+  studentCode  String?  @unique
+  role         Role     @default(STUDENT)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  enrollments  Enrollment[]
+  attendances  Attendance[]
+}
+
+model Class {
+  id        String       @id @default(cuid())
+  code      String       @unique
+  name      String
+  createdAt DateTime     @default(now())
+
+  sessions  Session[]
+  students  Enrollment[]
+}
+
+model Enrollment {
+  id        String @id @default(cuid())
+  classId   String
+  studentId String
+
+  class   Class @relation(fields: [classId], references: [id])
+  student User  @relation(fields: [studentId], references: [id])
+
+  @@unique([classId, studentId])
+}
+
+model Session {
+  id             String   @id @default(cuid())
+  classId        String
+  title          String
+  startTime      DateTime
+  endTime        DateTime
+  latitude       Float
+  longitude      Float
+  geofenceRadius Int       // mét
+  otpSecret      String    // secret TOTP cho buổi học
+  createdAt      DateTime  @default(now())
+
+  class       Class       @relation(fields: [classId], references: [id])
+  attendances Attendance[]
+}
+
+model Attendance {
+  id          String      @id @default(cuid())
+  sessionId   String
+  studentId   String
+  method      AttendanceMethod
+  status      AttendanceStatus @default(APPROVED)
+  lat         Float?
+  lng         Float?
+  accuracy    Float?
+  otpUsed     String?
+  createdAt   DateTime    @default(now())
+
+  session     Session     @relation(fields: [sessionId], references: [id])
+  student     User        @relation(fields: [studentId], references: [id])
+  evidence    Evidence?
+
+  @@unique([sessionId, studentId]) // 1 SV chỉ 1 check-in/buổi
+}
+
+model Evidence {
+  id          String   @id @default(cuid())
+  attendanceId String  @unique
+  photoUrl    String
+  metaJson    String   // JSON: {studentCode, sessionId, otp, timestamp}
+
+  attendance  Attendance @relation(fields: [attendanceId], references: [id])
+}
+
+enum Role { STUDENT LECTURER ADMIN }
+enum AttendanceMethod { QR_GPS OTP_PHOTO }
+enum AttendanceStatus { PENDING APPROVED REJECTED }
+```
+
+Tạo **seed**: 1 lớp, 1 giảng viên, vài sinh viên (có `studentCode`), 1–2 buổi học (có `otpSecret`, vị trí mẫu ở TDTU).
+
+---
+
+## 4) API Contract (NestJS Controllers)
+
+### Auth
+
+* `POST /auth/register` {email, password, fullName, role?, studentCode?} → tạo user
+* `POST /auth/login` {email, password} → {accessToken}
+* `GET /auth/me` → user info
+
+### Classes & Enrollment
+
+* `POST /classes` (lecturer/admin) {code, name}
+* `POST /classes/:id/enroll` (lecturer/admin) {studentCode or userId[]}
+* `GET /classes/:id` → detail + roster
+
+### Sessions
+
+* `POST /sessions` (lecturer) {classId, title, startTime, endTime, lat, lng, geofenceRadius}
+
+  * server tự tạo `otpSecret` (base32)
+* `GET /sessions/:id/qr` (lecturer) → trả về **QR payload** (string JSON) cho màn hình lớp:
+
+  ```json
+  { "sessionId":"...", "nonce":"...", "iat":..., "exp":..., "type":"ATTEND_TOKEN", "ver":1 }
+  ```
+
+  * **nonce** lưu Redis in-memory (hoặc Map trong dev) TTL 60s để chống replay
+* `GET /sessions/:id/otp` (lecturer) → trả **current TOTP code** (quay mỗi 30/60s, lệch ±1 step)
+
+### Attendance
+
+* `POST /attendance/checkin-qr` (student, Authorization)
+  Body:
+
+  ```json
+  { "qrToken":"...", "lat":10.7, "lng":106.6, "accuracy":15 }
+  ```
+
+  Logic:
+
+  * Xác thực JWT → biết studentId.
+  * Xác thực `qrToken` (exp ≤ 60s, nonce hợp lệ).
+  * Kiểm tra `distance( lat,lng, session.lat, session.lng) <= geofenceRadius`.
+  * Lưu `Attendance{ method: QR_GPS, status: APPROVED }`.
+
+* `POST /attendance/checkin-otp` (student, Authorization)
+  Multipart: `file` (ảnh), JSON fields: `{ sessionId, otp, meta: { studentCode, timestamp } }`
+  Logic:
+
+  * Verify student ∈ enrollment của class.
+  * Verify TOTP khớp `otpSecret` (± 1 step).
+  * Lưu file (local `/uploads` dev), tạo URL.
+  * Tạo `Evidence` (metaJson) + `Attendance{ method: OTP_PHOTO, status: PENDING }`.
+
+* `GET /attendance/session/:id` (lecturer) → danh sách điểm danh (kèm `photoUrl` nếu có).
+
+### Evidence
+
+* `POST /evidence/upload` (nếu muốn tách) – nhưng ưu tiên gộp vào `/attendance/checkin-otp`.
+
+### Bảo mật & tiện ích
+
+* Guards: JWT auth, role guard.
+* CORS: allow origin từ env `FRONTEND_URL`.
+* Rate-limit nhẹ cho `/attendance/*` (tối thiểu in-memory dev).
+
+---
+
+## 5) Frontend (React + Vite, TS, Router)
+
+### Trang/Screens
+
+* `/login` – form đăng nhập → lưu token.
+* `/student/scan` – **quét QR** (camera) → gửi `qrToken` + GPS.
+
+  * Nếu trình duyệt không có GPS → gợi ý sang **OTP + ảnh**.
+* `/student/otp` – nhập OTP + **chụp ảnh** → vẽ **watermark** trên canvas:
+
+  * Text watermark: `studentCode - sessionId - OTP - YYYY-MM-DD HH:mm:ss ZZ`
+  * Tuỳ chọn render **QR nhỏ** chứa cùng thông tin ở góc ảnh.
+  * Ảnh sau watermark nén về ~1200px chiều dài lớn nhất, chất lượng ~0.8.
+  * Upload kèm metadata.
+* `/teacher/session/:id` – hiển thị **QR động** (đổi mỗi 60s) & **OTP hiện hành**:
+
+  * Card 1: QR payload (tạo string rồi vẽ QR bằng `qrcode.react`).
+  * Card 2: OTP (tự refresh mỗi 5s).
+  * Bảng điểm danh: PENDING/APPROVED + ảnh (click xem).
+  * Nút **Approve/Reject** (API PATCH tuỳ chọn, nếu chưa có thì hiển thị read-only).
+
+### State & API
+
+* Store token bằng `localStorage`. Axios interceptor đính kèm Bearer.
+* Lấy **GPS** (geolocation) khi check-in, hiển thị cảnh báo nếu bị chặn.
+
+---
+
+## 6) Environment & cấu hình
+
+### `/backend/.env.example`
+
+```
+DATABASE_URL=postgresql://app:app@db:5432/attendance
+JWT_SECRET=dev_change_me
+FRONTEND_URL=http://localhost:3000
+QR_ROTATE_SECONDS=60
+OTP_STEP_SECONDS=30
+GEOFENCE_RADIUS_M_DEFAULT=100
+UPLOAD_DIR=./uploads
+```
+
+### `/frontend/.env.example`
+
+```
+VITE_API_BASE=http://localhost:8080
+VITE_QR_ROTATE_SECONDS=60
+VITE_OTP_STEP_SECONDS=30
+```
+
+---
+
+## 7) Docker Compose + scripts
+
+* `docker-compose.yml` chạy `db` + `backend` + `frontend`.
+* `backend` lắng `0.0.0.0:8080`, `frontend` `0.0.0.0:3000`.
+* Scripts:
+
+  * root: `npm run dev` → chạy song song `backend` và `frontend`.
+  * backend:
+
+    * `prisma:generate`, `prisma:migrate`, `prisma:seed`
+    * `start:dev`
+  * frontend:
+
+    * `dev`, `build`, `preview`
+
+**docker-compose.yml** (yêu cầu Cursor sinh file hoàn chỉnh):
+
+* services: `db` (Postgres 16), `backend`, `frontend`
+* volumes: `dbdata`, bind `backend/uploads`
+* ports: `3000`, `8080`, `5432`
+
+---
+
+## 8) Seed & kiểm thử
+
+* Seed:
+
+  * User giảng viên (email: `lecturer@test.com`, pass: `123456`, role `LECTURER`)
+  * 3 sinh viên có `studentCode`: `SV001`, `SV002`, `SV003`
+  * 1 lớp `INT101` + enroll 3 SV
+  * 1–2 buổi học (otpSecret random, địa điểm mẫu ở TDTU)
+* README hướng dẫn:
+
+  1. `docker compose up -d db`
+  2. `cd backend && npm i && npx prisma migrate dev && npm run seed && npm run start:dev`
+  3. `cd ../frontend && npm i && npm run dev`
+  4. Mở **tunnel**:
+
+     * `cloudflared tunnel --url http://localhost:3000`
+     * `cloudflared tunnel --url http://localhost:8080`
+  5. Trên điện thoại mở URL tunnel của frontend → login → test **QR + GPS** và **OTP + ảnh**.
+
+---
+
+## 9) Yêu cầu chất lượng & bảo mật
+
+* DTO + `class-validator` cho tất cả request body.
+* Error Handling chuẩn Nest (Filter HTTPException, lỗi validation).
+* Không log plaintext password/secret.
+* TOTP lệch tối đa ±1 step.
+* QR token có `exp` ≤ 60s + `nonce` chống replay (map/redis in-memory dev).
+* Khoảng cách Haversine server-side.
+* Ảnh: giới hạn kích thước upload (10–20MB), lưu vào `uploads/` (dev). Trả về URL tĩnh từ backend (Static module).
+* CORS: allow origin từ `FRONTEND_URL`.
+
+---
+
+**Hãy tạo toàn bộ code theo đúng đặc tả trên. Viết README chi tiết (tiếng Việt) để người dùng làm theo là chạy được ngay.**

@@ -1,0 +1,146 @@
+.teacher-dashboard {
+  min-height: 100vh;
+  padding: 24px;
+  background: linear-gradient(180deg, #f8fafc, #eef2ff);
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  background: #ffffff;
+  padding: 20px 24px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.08);
+}
+
+.dashboard-header h1 {
+  margin: 0;
+  color: #333;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.user-info {
+  color: #666;
+  font-size: 14px;
+}
+
+.logout-button {
+  padding: 10px 16px;
+  background: var(--danger);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.logout-button:hover {
+  background: #c82333;
+}
+
+.classes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.class-card {
+  background: #ffffff;
+  padding: 24px;
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(2, 6, 23, 0.06);
+}
+
+.class-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.class-header h2 {
+  margin: 0;
+  color: #333;
+}
+
+.create-session-button {
+  padding: 10px 16px;
+  background: var(--success);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.create-session-button:hover {
+  background: #218838;
+}
+
+.sessions-list h3 {
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.sessions-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.sessions-table th,
+.sessions-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+}
+
+.sessions-table th {
+  background: #f8f9fa;
+  font-weight: 600;
+  color: #333;
+}
+
+.view-session-button {
+  padding: 8px 12px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.view-session-button:hover {
+  background: #0056b3;
+}
+
+.no-sessions {
+  color: #666;
+  padding: 20px;
+  text-align: center;
+}
+
+.loading,
+.error-message {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+}
+
+.error-message {
+  color: #dc3545;
+  background: #f8d7da;
+  border-radius: 4px;
+}
+

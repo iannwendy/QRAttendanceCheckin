@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16
+    container_name: qr-attendance-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: attendance
+    ports:
+      - "5433:5432"
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: qr-attendance-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgresql://app:app@db:5432/attendance
+      JWT_SECRET: dev_change_me_in_production
+      FRONTEND_URL: http://localhost:3000
+      QR_ROTATE_SECONDS: 60
+      OTP_STEP_SECONDS: 30
+      GEOFENCE_RADIUS_M_DEFAULT: 100
+      UPLOAD_DIR: ./uploads
+    volumes:
+      - ./backend/uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    # use Dockerfile CMD (node dist/main.js)
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: qr-attendance-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_API_BASE: http://localhost:8080
+      VITE_QR_ROTATE_SECONDS: 60
+      VITE_OTP_STEP_SECONDS: 30
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  dbdata:
+

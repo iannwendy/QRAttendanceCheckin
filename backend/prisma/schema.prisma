@@ -1,0 +1,112 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  fullName     String
+  studentCode  String?  @unique
+  role         Role     @default(STUDENT)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  enrollments  Enrollment[]
+  attendances  Attendance[]
+}
+
+model Class {
+  id        String       @id @default(cuid())
+  code      String       @unique
+  name      String
+  createdAt DateTime     @default(now())
+
+  sessions  Session[]
+  students  Enrollment[]
+}
+
+model Enrollment {
+  id        String @id @default(cuid())
+  classId   String
+  studentId String
+
+  class   Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student User  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, studentId])
+}
+
+model Session {
+  id             String   @id @default(cuid())
+  classId        String
+  title          String
+  startTime      DateTime
+  endTime        DateTime
+  latitude       Float
+  longitude      Float
+  geofenceRadius Int       // mét
+  otpSecret      String    // secret TOTP cho buổi học
+  createdAt      DateTime  @default(now())
+
+  class       Class       @relation(fields: [classId], references: [id], onDelete: Cascade)
+  attendances Attendance[]
+
+  @@index([classId])
+}
+
+model Attendance {
+  id          String      @id @default(cuid())
+  sessionId   String
+  studentId   String
+  method      AttendanceMethod
+  status      AttendanceStatus @default(NOT_ATTENDED)
+  lat         Float?
+  lng         Float?
+  accuracy    Float?
+  otpUsed     String?
+  createdAt   DateTime    @default(now())
+
+  session     Session     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student     User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  evidence    Evidence?
+
+  @@unique([sessionId, studentId]) // 1 SV chỉ 1 check-in/buổi
+  @@index([sessionId])
+  @@index([studentId])
+}
+
+model Evidence {
+  id          String   @id @default(cuid())
+  attendanceId String  @unique
+  photoUrl    String
+  metaJson    String   // JSON: {studentCode, sessionId, otp, timestamp}
+
+  attendance  Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+}
+
+enum Role { 
+  STUDENT 
+  LECTURER 
+  ADMIN 
+}
+
+enum AttendanceMethod { 
+  QR_GPS 
+  OTP_PHOTO 
+  AUTO_IMPORT
+}
+
+enum AttendanceStatus { 
+  NOT_ATTENDED
+  PENDING 
+  APPROVED 
+  REJECTED 
+  TOO_FAR
+}
+
