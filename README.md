@@ -1,193 +1,138 @@
 # QR Attendance System
 
-Hệ thống điểm danh QR với xác thực GPS, OTP tại lớp và ảnh chụp có watermark.
+An end-to-end attendance platform with QR-based check-in, GPS verification, OTP fallback, and watermarked photo evidence.
 
-## 📋 Mô tả
+## Overview
 
-Hệ thống điểm danh thông minh với 2 phương thức:
-1. **QR + GPS** (mặc định): Quét QR code và xác thực vị trí GPS
-2. **OTP + Ảnh** (fallback): Nhập OTP và chụp ảnh có watermark
+The system supports two check-in methods:
+1. QR Code + GPS (default)
+2. OTP + Photo (fallback)
 
-## 🏗️ Kiến trúc
+This repository contains both the backend API and the frontend web app, along with Docker configuration for local development.
 
-- **Backend**: NestJS + Prisma + PostgreSQL
-- **Frontend**: React + Vite + TypeScript
-- **Database**: PostgreSQL 16
-- **Auth**: JWT với roles (STUDENT, LECTURER, ADMIN)
+## Architecture
 
-## 📁 Cấu trúc thư mục
+- Backend: NestJS, Prisma ORM, PostgreSQL
+- Frontend: React, Vite, TypeScript
+- Database: PostgreSQL 16
+- Authentication: JWT with roles (STUDENT, LECTURER, ADMIN)
+
+## Directory Structure
 
 ```
-/qr-attendance/
-  /backend/          # NestJS API
-  /frontend/         # React + Vite
+/SOA_QRAttendance
+  /backend            # NestJS API
+  /frontend           # React + Vite app
   docker-compose.yml
   README.md
 ```
 
-## 🚀 Hướng dẫn chạy dự án
+## Getting Started
 
-### Yêu cầu
+### Prerequisites
 
 - Node.js 20+
-- Docker & Docker Compose
-- npm hoặc yarn
+- Docker and Docker Compose
+- npm (or yarn/pnpm)
 
-### Bước 1: Khởi động Database
+### Option A: Run everything with Docker
+
+```bash
+docker compose up -d
+```
+
+Services:
+- db: PostgreSQL on port 5432
+- backend: NestJS API on port 8080
+- frontend: React app on port 3000
+
+### Option B: Run locally (manual)
+
+#### 1) Database
 
 ```bash
 docker compose up -d db
 ```
 
-### Bước 2: Setup Backend
+#### 2) Backend setup
 
 ```bash
 cd backend
-
-# Cài đặt dependencies
 npm install
 
-# Tạo file .env từ .env.example
-cp .env.example .env
+# Create .env from template (provide values as needed)
+# Example values are in the Environment section below
+# cp .env.example .env  (if you maintain a template)
 
-# Generate Prisma client
 npm run prisma:generate
-
-# Chạy migrations
 npm run prisma:migrate
-
-# Seed data (tạo 100 sinh viên, admin, lecturer, lớp học)
-npm run prisma:seed
-
-# Chạy backend (port 8080)
-npm run start:dev
+npm run prisma:seed   # seeds admin, lecturer, classes, 100 students
+npm run start:dev     # runs on http://localhost:8080
 ```
 
-### Bước 3: Setup Frontend
-
-Mở terminal mới:
+#### 3) Frontend setup
 
 ```bash
 cd frontend
-
-# Cài đặt dependencies
 npm install
 
-# Tạo file .env từ .env.example
-cp .env.example .env
-
-# Chạy frontend (port 3000)
-npm run dev
+# Create .env (see Environment section below)
+npm run dev           # runs on http://localhost:3000
 ```
 
-### Bước 4: Test trên điện thoại (Tùy chọn)
+## Default Accounts (from seed)
 
-Để test trên điện thoại, bạn cần tạo tunnel HTTPS:
+- Admin: email `admin@test.com`, password `admin123`
+- Lecturer: email `lecturer@test.com`, password `lecturer123`
+- Students (100):
+  - Email range: `student523H0001@test.com` to `student523H0100@test.com`
+  - Password: `pass123`
+  - Student codes: `523H0001` to `523H0100`
 
-#### Sử dụng Cloudflare Tunnel:
+## Key Features
 
-```bash
-# Cài đặt cloudflared (nếu chưa có)
-# macOS: brew install cloudflared
-# hoặc download từ https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/
+- Student
+  - Login `/login`
+  - QR check-in `/student/scan` (auto GPS prompt and validation)
+  - OTP + Photo check-in `/student/otp` (watermark includes student code, session id, OTP, timestamp)
 
-# Tạo tunnel cho frontend
-cloudflared tunnel --url http://localhost:3000
+- Lecturer
+  - Session management `/teacher/session/:id`
+  - Rotating QR (every 60s) and OTP (every 30s)
+  - Attendance list and photo evidence review
 
-# Mở terminal mới, tạo tunnel cho backend
-cloudflared tunnel --url http://localhost:8080
-```
+## API Overview (high-level)
 
-Sau đó cập nhật `frontend/.env`:
-```
-VITE_API_BASE=<tunnel-url-backend>
-```
+- Auth
+  - `POST /auth/login`
+  - `GET /auth/me`
 
-Và truy cập frontend qua tunnel URL trên điện thoại.
+- Classes
+  - `POST /classes`
+  - `GET /classes/:id`
+  - `POST /classes/:id/enroll`
 
-#### Hoặc sử dụng ngrok:
+- Sessions
+  - `POST /sessions`
+  - `GET /sessions/:id`
+  - `GET /sessions/:id/qr`
+  - `GET /sessions/:id/otp`
 
-```bash
-# Cài đặt ngrok: https://ngrok.com/download
+- Attendance
+  - `POST /attendance/checkin-qr`
+  - `POST /attendance/checkin-otp`
+  - `GET /attendance/session/:id`
 
-# Tạo tunnel cho frontend
-ngrok http 3000
+## Security Notes
 
-# Terminal mới, tạo tunnel cho backend
-ngrok http 8080
-```
-
-## 👤 Tài khoản mặc định
-
-Sau khi chạy seed:
-
-### Admin
-- Email: `admin@test.com`
-- Password: `admin123`
-
-### Giảng viên
-- Email: `lecturer@test.com`
-- Password: `lecturer123`
-
-### Sinh viên (100 tài khoản)
-- Email: `student523H0001@test.com` đến `student523H0100@test.com`
-- Password: `pass123`
-- MSSV: `523H0001` đến `523H0100`
-
-## 📱 Chức năng
-
-### Sinh viên
-
-1. **Đăng nhập**: `/login`
-2. **Quét QR điểm danh**: `/student/scan`
-   - Tự động lấy GPS
-   - Quét QR code từ màn hình lớp
-   - Nếu không có GPS → gợi ý chuyển sang OTP
-3. **Điểm danh bằng OTP + Ảnh**: `/student/otp`
-   - Nhập Session ID và OTP
-   - Chụp ảnh với watermark (MSSV, Session ID, OTP, timestamp)
-   - Upload và chờ duyệt
-
-### Giảng viên
-
-1. **Quản lý buổi học**: `/teacher/session/:id`
-   - Xem QR code động (đổi mỗi 60s)
-   - Xem OTP hiện tại (đổi mỗi 30s)
-   - Xem danh sách điểm danh
-   - Xem ảnh minh chứng (nếu có)
-
-## 🔧 API Endpoints
-
-### Auth
-- `POST /auth/login` - Đăng nhập
-- `GET /auth/me` - Lấy thông tin user hiện tại
-
-### Classes
-- `POST /classes` - Tạo lớp (lecturer/admin)
-- `GET /classes/:id` - Chi tiết lớp
-- `POST /classes/:id/enroll` - Gán sinh viên vào lớp
-
-### Sessions
-- `POST /sessions` - Tạo buổi học (lecturer)
-- `GET /sessions/:id` - Chi tiết buổi học
-- `GET /sessions/:id/qr` - Lấy QR payload (lecturer)
-- `GET /sessions/:id/otp` - Lấy OTP hiện tại (lecturer)
-
-### Attendance
-- `POST /attendance/checkin-qr` - Điểm danh bằng QR + GPS (student)
-- `POST /attendance/checkin-otp` - Điểm danh bằng OTP + Ảnh (student)
-- `GET /attendance/session/:id` - Danh sách điểm danh (lecturer)
-
-## 🔒 Bảo mật
-
-- JWT authentication với Bearer token
+- JWT authentication (Bearer token)
 - Role-based access control (RBAC)
-- QR token có TTL 60s và nonce chống replay
-- TOTP với tolerance ±1 step
-- GPS geofence validation
-- Ảnh có watermark chống gian lận
+- QR token with 60s TTL and anti-replay nonce
+- TOTP with ±1 step tolerance
+- GPS geofencing
+- Watermarked photo evidence
 
-## 📝 Environment Variables
+## Environment Variables
 
 ### Backend (.env)
 ```
@@ -207,68 +152,50 @@ VITE_QR_ROTATE_SECONDS=60
 VITE_OTP_STEP_SECONDS=30
 ```
 
-## 🐳 Docker Compose
-
-Chạy toàn bộ hệ thống với Docker:
-
-```bash
-docker compose up -d
-```
-
-Services:
-- `db`: PostgreSQL (port 5432)
-- `backend`: NestJS API (port 8080)
-- `frontend`: React app (port 3000)
-
-## 📚 Scripts
+## Development Scripts
 
 ### Backend
 ```bash
-npm run start:dev      # Chạy dev mode
-npm run prisma:generate # Generate Prisma client
-npm run prisma:migrate  # Chạy migrations
-npm run prisma:seed    # Seed data
+npm run start:dev
+npm run prisma:generate
+npm run prisma:migrate
+npm run prisma:seed
 ```
 
 ### Frontend
 ```bash
-npm run dev     # Chạy dev server
-npm run build   # Build production
-npm run preview # Preview production build
+npm run dev
+npm run build
+npm run preview
 ```
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
-### Lỗi database connection
-- Đảm bảo Docker container `db` đang chạy: `docker ps`
-- Kiểm tra `DATABASE_URL` trong `.env`
+- Database connection issues
+  - Ensure `db` container is running: `docker ps`
+  - Verify `DATABASE_URL` in backend `.env`
 
-### Lỗi camera không hoạt động
-- Trên điện thoại, cần HTTPS (dùng tunnel)
-- Cho phép quyền camera trong trình duyệt
+- Camera access in mobile browsers
+  - Requires HTTPS on phones; consider a tunnel (Cloudflare Tunnel or ngrok)
+  - Grant camera permissions
 
-### Lỗi GPS không hoạt động
-- Cho phép quyền vị trí trong trình duyệt
-- Hoặc sử dụng chế độ OTP + Ảnh
+- GPS issues
+  - Grant location permissions
+  - Use OTP + Photo fallback if GPS is unavailable
 
-### Lỗi CORS
-- Kiểm tra `FRONTEND_URL` trong backend `.env`
-- Đảm bảo frontend URL khớp với URL thực tế
+- CORS errors
+  - Check `FRONTEND_URL` in backend `.env`
+  - Ensure it matches the actual frontend origin
 
-## 📄 License
+## License
 
 MIT
 
-## 👥 Tác giả
+## Production Checklist
 
-Senior Full-Stack Engineer
-
----
-
-**Lưu ý**: Đây là phiên bản development. Để deploy production, cần:
-- Đổi `JWT_SECRET` thành giá trị bảo mật
-- Cấu hình HTTPS
-- Sử dụng cloud storage cho ảnh (S3, R2, etc.)
-- Setup monitoring và logging
-- Cấu hình rate limiting
+- Use a strong `JWT_SECRET`
+- Enforce HTTPS
+- Store uploads in cloud storage (e.g., S3/R2)
+- Add monitoring and logging
+- Configure rate limiting
 
