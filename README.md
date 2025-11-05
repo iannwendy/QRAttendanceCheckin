@@ -42,7 +42,7 @@ docker compose up -d
 ```
 
 Services:
-- db: PostgreSQL on port 5432
+- db: PostgreSQL exposed on host port 5433 (container 5432)
 - backend: NestJS API on port 8080
 - frontend: React app on port 3000
 
@@ -52,6 +52,9 @@ Services:
 
 ```bash
 docker compose up -d db
+
+# Local DB connection (host):
+# postgresql://app:app@localhost:5433/attendance
 ```
 
 #### 2) Backend setup
@@ -60,9 +63,16 @@ docker compose up -d db
 cd backend
 npm install
 
-# Create .env from template (provide values as needed)
-# Example values are in the Environment section below
-# cp .env.example .env  (if you maintain a template)
+# Create .env with values (see Environment section below)
+cat > .env << 'EOF'
+DATABASE_URL=postgresql://app:app@localhost:5433/attendance
+JWT_SECRET=dev_change_me
+FRONTEND_URL=http://localhost:3000
+QR_ROTATE_SECONDS=60
+OTP_STEP_SECONDS=30
+GEOFENCE_RADIUS_M_DEFAULT=100
+UPLOAD_DIR=./uploads
+EOF
 
 npm run prisma:generate
 npm run prisma:migrate
@@ -136,7 +146,12 @@ npm run dev           # runs on http://localhost:3000
 
 ### Backend (.env)
 ```
-DATABASE_URL=postgresql://app:app@db:5432/attendance
+# If backend runs in Docker (together with db service):
+# DATABASE_URL=postgresql://app:app@db:5432/attendance
+
+# If backend runs locally and only db is in Docker:
+# DATABASE_URL=postgresql://app:app@localhost:5433/attendance
+
 JWT_SECRET=dev_change_me
 FRONTEND_URL=http://localhost:3000
 QR_ROTATE_SECONDS=60
@@ -173,7 +188,8 @@ npm run preview
 
 - Database connection issues
   - Ensure `db` container is running: `docker ps`
-  - Verify `DATABASE_URL` in backend `.env`
+  - If backend runs locally, use host port `5433` in `DATABASE_URL`
+  - If backend runs in Docker, use `db:5432` in `DATABASE_URL`
 
 - Camera access in mobile browsers
   - Requires HTTPS on phones; consider a tunnel (Cloudflare Tunnel or ngrok)
