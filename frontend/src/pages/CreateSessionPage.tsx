@@ -151,7 +151,11 @@ function CreateSessionPage() {
             >
               Hủy
             </button>
-            <button type="submit" disabled={loading} className="submit-button">
+            <button
+              type="submit"
+              disabled={loading}
+              className="submit-button"
+            >
               {loading ? 'Đang tạo...' : 'Tạo Buổi Học'}
             </button>
           </div>

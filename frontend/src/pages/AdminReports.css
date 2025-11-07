@@ -1,0 +1,82 @@
+.admin-page {
+  min-height: 100vh;
+  padding: 24px;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+}
+
+.admin-container {
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  background: #ffffff;
+  padding: 18px 24px;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.08);
+}
+
+.admin-header h1 { margin: 0 0 6px 0; color: #0f172a; font-size: 28px; }
+.admin-subtitle { margin: 0; color: #475569; font-size: 14px; }
+.admin-header-left { display: flex; flex-direction: column; }
+
+.admin-actions { display: flex; align-items: center; gap: 12px; }
+.user-info { color: #475569; font-size: 14px; }
+
+.logout-button {
+  padding: 10px 16px;
+  background: #111827;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(17, 24, 39, 0.15);
+  transition: transform 0.06s ease, box-shadow 0.15s ease, opacity 0.2s ease;
+}
+.logout-button:hover { opacity: .95; }
+.logout-button:active { transform: translateY(1px); }
+
+.admin-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.admin-card {
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.06);
+}
+.admin-card h3 { margin: 0 0 8px 0; color: #0f172a; }
+.admin-card p { color: #475569; margin: 0 0 12px 0; }
+
+.primary-button {
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.25);
+}
+.primary-button.full { width: 100%; }
+.primary-button:disabled { background: #93a3b8; box-shadow: none; cursor: not-allowed; }
+
+@media (max-width: 480px) {
+  .admin-header { padding: 16px; border-radius: 14px; }
+  .admin-header h1 { font-size: 24px; }
+  .admin-subtitle { font-size: 13px; }
+}
+
+

@@ -1,23 +1,44 @@
 .scan-page {
   min-height: 100vh;
-  padding: 20px;
-  background: #f5f5f5;
+  padding: 24px;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
 }
 
 .scan-container {
-  max-width: 640px;
+  max-width: 720px;
   margin: 0 auto;
-  background: white;
+  background: #ffffff;
   padding: 28px;
-  border-radius: 12px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.08);
+  border: 1px solid #eef2f7;
 }
 
 .scan-container h1 {
   text-align: left;
-  margin: 0 0 16px 0;
-  color: #111827;
+  margin: 0 0 6px 0;
+  color: #0f172a;
   line-height: 1.2;
+  font-size: 28px;
+}
+
+.scan-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.scan-header-left {
+  display: flex;
+  flex-direction: column;
+}
+
+.scan-subtitle {
+  margin: 0;
+  color: #475569;
+  font-size: 14px;
 }
 
 .location-warning {
@@ -37,10 +58,10 @@
 }
 
 .location-info {
-  background: #d1ecf1;
-  border: 1px solid #bee5eb;
-  padding: 15px;
-  border-radius: 8px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 14px 16px;
+  border-radius: 12px;
   margin-bottom: 20px;
   font-size: 14px;
 }
@@ -51,48 +72,67 @@
 
 .qr-reader {
   width: 100%;
-  max-width: 520px;
+  max-width: 560px;
   margin: 20px auto;
-  border: 2px solid #ddd;
-  border-radius: 12px;
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+  border-radius: 16px;
   overflow: hidden;
 }
 
 .scan-button {
   width: 100%;
-  padding: 15px;
-  background: #007bff;
-  color: white;
+  padding: 16px;
+  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+  color: #ffffff;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   margin-top: 20px;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.25);
+  transition: transform 0.06s ease, box-shadow 0.15s ease, opacity 0.2s ease;
 }
 
 .scan-button.stop {
-  background: #dc3545;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  box-shadow: 0 8px 20px rgba(239, 68, 68, 0.25);
 }
 
-.scan-button:hover {
-  opacity: 0.9;
-}
+.scan-button:hover { opacity: 0.95; }
+.scan-button:active { transform: translateY(1px); }
 
 /* Small logout button in header (not full width) */
 .logout-button {
   padding: 10px 16px;
-  background: #dc3545;
+  background: #111827;
   color: #fff;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   font-weight: 600;
   cursor: pointer;
+  box-shadow: 0 6px 16px rgba(17, 24, 39, 0.15);
+  transition: transform 0.06s ease, box-shadow 0.15s ease, opacity 0.2s ease;
 }
 
-.logout-button:hover {
-  opacity: 0.95;
+.logout-button:hover { opacity: 0.95; }
+.logout-button:active { transform: translateY(1px); }
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  line-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-right: 8px;
 }
+
+.pill-primary { background: #dbeafe; color: #1d4ed8; }
+.pill-muted { background: #e2e8f0; color: #334155; }
 
 /* Mobile responsive tweaks */
 @media (max-width: 480px) {
@@ -102,13 +142,14 @@
   }
   .scan-container {
     padding: 18px 16px;
-    border-radius: 12px;
+    border-radius: 14px;
     box-shadow: none;
   }
   .scan-container h1 {
     font-size: 24px;
     text-align: left;
   }
+  .scan-subtitle { font-size: 13px; }
   .location-info, .location-warning {
     font-size: 13px;
     padding: 12px;

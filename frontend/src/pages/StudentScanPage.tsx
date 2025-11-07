@@ -117,8 +117,11 @@ function StudentScanPage() {
   return (
     <div className="scan-page">
       <div className="scan-container">
-        <div className="scan-header" style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <div className="scan-header">
+          <div className="scan-header-left">
           <h1>Quét QR Điểm Danh</h1>
+            <p className="scan-subtitle">Dùng camera để quét mã QR từ giảng viên</p>
+          </div>
           <button onClick={logout} className="logout-button">Đăng xuất</button>
         </div>
         {user && (
@@ -134,8 +137,8 @@ function StudentScanPage() {
         )}
         {location && (
           <div className="location-info">
-            <p>Vị trí GPS: {location.lat.toFixed(6)}, {location.lng.toFixed(6)}</p>
-            <p>Độ chính xác: ±{Math.round(location.accuracy)}m</p>
+            <p><span className="pill pill-primary">GPS</span> {location.lat.toFixed(6)}, {location.lng.toFixed(6)}</p>
+            <p><span className="pill pill-muted">Accuracy</span> ±{Math.round(location.accuracy)}m</p>
           </div>
         )}
         <div id="qr-reader" className="qr-reader"></div>

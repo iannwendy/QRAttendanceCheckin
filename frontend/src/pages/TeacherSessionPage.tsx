@@ -29,6 +29,7 @@ function TeacherSessionPage() {
   const [attendances, setAttendances] = useState<Attendance[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     if (id) {
@@ -188,9 +189,20 @@ function TeacherSessionPage() {
         </div>
         <div className="attendance-section">
           <h2>Danh Sách Điểm Danh</h2>
-          <button onClick={() => fetchAttendances(true)} className="refresh-button">
-            Làm mới
-          </button>
+          <div className="attendance-actions">
+            <div className="search-wrapper">
+              <input
+                type="text"
+                className="search-input"
+                placeholder="Tìm nhanh theo MSSV, họ tên..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <button onClick={() => fetchAttendances(true)} className="refresh-button">
+              Làm mới
+            </button>
+          </div>
           {loading ? (
             <div className="loading">Đang tải...</div>
           ) : (
@@ -208,14 +220,15 @@ function TeacherSessionPage() {
                 </tr>
               </thead>
               <tbody>
-                {attendances.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="no-data">
-                      Chưa có điểm danh
-                    </td>
-                  </tr>
-                ) : (
-                  attendances.map((attendance) => (
+                {attendances
+                  .filter((a) => {
+                    const q = search.trim().toLowerCase();
+                    if (!q) return true;
+                    const code = (a.student.studentCode || '').toLowerCase();
+                    const name = (a.student.fullName || '').toLowerCase();
+                    return code.includes(q) || name.includes(q);
+                  })
+                  .map((attendance) => (
                     <tr key={attendance.id}>
                       <td>{attendance.student.studentCode || 'N/A'}</td>
                       <td>{attendance.student.fullName}</td>
@@ -252,7 +265,7 @@ function TeacherSessionPage() {
                         </span>
                       </td>
                       <td>
-                        {new Date(attendance.createdAt).toLocaleString('vi-VN')}
+                        {new Date((attendance as any).updatedAt || attendance.createdAt).toLocaleString('vi-VN')}
                       </td>
                       <td>
                         {attendance.evidence ? (
@@ -288,7 +301,13 @@ function TeacherSessionPage() {
                         )}
                       </td>
                     </tr>
-                  ))
+                  ))}
+                {attendances.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="no-data">
+                      Chưa có điểm danh
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>

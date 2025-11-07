@@ -6,6 +6,7 @@ import StudentOTPPage from './pages/StudentOTPPage';
 import TeacherDashboard from './pages/TeacherDashboard';
 import TeacherSessionPage from './pages/TeacherSessionPage';
 import CreateSessionPage from './pages/CreateSessionPage';
+import CreateClassPage from './pages/CreateClassPage';
 import StudentAutoCheckin from './pages/StudentAutoCheckin';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminReports from './pages/AdminReports';
@@ -60,6 +61,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['LECTURER']}>
               <CreateSessionPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/teacher/create-class"
+          element={
+            <ProtectedRoute allowedRoles={['LECTURER']}>
+              <CreateClassPage />
             </ProtectedRoute>
           }
         />

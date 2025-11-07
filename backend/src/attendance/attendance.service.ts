@@ -301,7 +301,7 @@ export class AttendanceService {
       },
       orderBy: [
         { student: { studentCode: 'asc' } },
-        { createdAt: 'asc' },
+        { updatedAt: 'desc' },
       ],
     });
   }
@@ -322,6 +322,185 @@ export class AttendanceService {
       include: { student: true, evidence: true },
     });
     return att;
+  }
+
+  async getClassAttendanceReport(classId: string) {
+    const classData = await this.prisma.class.findUnique({
+      where: { id: classId },
+      include: {
+        students: {
+          include: {
+            student: {
+              select: {
+                id: true,
+                fullName: true,
+                studentCode: true,
+                email: true,
+              },
+            },
+          },
+        },
+        sessions: {
+          select: {
+            id: true,
+            title: true,
+            startTime: true,
+            endTime: true,
+          },
+          orderBy: { startTime: 'asc' },
+        },
+      },
+    });
+
+    if (!classData) {
+      throw new BadRequestException('Lớp học không tồn tại');
+    }
+
+    const totalSessions = classData.sessions.length;
+    const report = [];
+
+    for (const enrollment of classData.students) {
+      const student = enrollment.student;
+      
+      // Get all attendances for this student in this class
+      const attendances = await this.prisma.attendance.findMany({
+        where: {
+          studentId: student.id,
+          sessionId: {
+            in: classData.sessions.map((s) => s.id),
+          },
+        },
+        include: {
+          session: {
+            select: {
+              id: true,
+              title: true,
+              startTime: true,
+            },
+          },
+        },
+      });
+
+      const approvedCount = attendances.filter(
+        (a) => a.status === AttendanceStatus.APPROVED,
+      ).length;
+      const attendanceRate = totalSessions > 0 
+        ? (approvedCount / totalSessions) * 100 
+        : 0;
+
+      // Build session attendance details
+      const sessionDetails = classData.sessions.map((session) => {
+        const attendance = attendances.find((a) => a.sessionId === session.id);
+        return {
+          sessionId: session.id,
+          sessionTitle: session.title,
+          sessionDate: session.startTime,
+          status: attendance?.status || AttendanceStatus.NOT_ATTENDED,
+          method: attendance?.method || null,
+          checkedInAt: attendance?.updatedAt || null,
+        };
+      });
+
+      report.push({
+        studentId: student.id,
+        studentCode: student.studentCode,
+        fullName: student.fullName,
+        email: student.email,
+        totalSessions,
+        attendedSessions: approvedCount,
+        attendanceRate: Math.round(attendanceRate * 100) / 100,
+        sessionDetails,
+      });
+    }
+
+    return {
+      class: {
+        id: classData.id,
+        code: classData.code,
+        name: classData.name,
+      },
+      totalSessions,
+      totalStudents: classData.students.length,
+      report,
+    };
+  }
+
+  async getAllClassesAttendanceReport() {
+    const classes = await this.prisma.class.findMany({
+      include: {
+        students: {
+          include: {
+            student: {
+              select: {
+                id: true,
+                fullName: true,
+                studentCode: true,
+                email: true,
+              },
+            },
+          },
+        },
+        sessions: {
+          select: {
+            id: true,
+            title: true,
+            startTime: true,
+          },
+          orderBy: { startTime: 'asc' },
+        },
+      },
+      orderBy: { code: 'asc' },
+    });
+
+    const allReports = [];
+
+    for (const classData of classes) {
+      const totalSessions = classData.sessions.length;
+      const classReport = [];
+
+      for (const enrollment of classData.students) {
+        const student = enrollment.student;
+        
+        const attendances = await this.prisma.attendance.findMany({
+          where: {
+            studentId: student.id,
+            sessionId: {
+              in: classData.sessions.map((s) => s.id),
+            },
+          },
+        });
+
+        const approvedCount = attendances.filter(
+          (a) => a.status === AttendanceStatus.APPROVED,
+        ).length;
+        const attendanceRate = totalSessions > 0 
+          ? (approvedCount / totalSessions) * 100 
+          : 0;
+
+        classReport.push({
+          studentId: student.id,
+          studentCode: student.studentCode,
+          fullName: student.fullName,
+          email: student.email,
+          totalSessions,
+          attendedSessions: approvedCount,
+          attendanceRate: Math.round(attendanceRate * 100) / 100,
+        });
+      }
+
+      allReports.push({
+        class: {
+          id: classData.id,
+          code: classData.code,
+          name: classData.name,
+        },
+        totalSessions,
+        totalStudents: classData.students.length,
+        students: classReport,
+      });
+    }
+
+    return allReports;
   }
 }
 

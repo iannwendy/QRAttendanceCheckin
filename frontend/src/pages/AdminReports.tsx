@@ -1,40 +1,109 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import api from '../store/api';
+import { exportToCSV } from '../utils/exportCSV';
+import './AdminReports.css';
 
 function AdminReports() {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+  const [loading, setLoading] = useState(false);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
+  const handleExportAllReports = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/attendance/report/all');
+      
+      if (!response.data || !Array.isArray(response.data) || response.data.length === 0) {
+        alert('Không có dữ liệu báo cáo để xuất.');
+        return;
+      }
+
+      const allRows: any[] = [];
+      
+      // Add header row
+      allRows.push({
+        'Lớp học': 'Lớp học',
+        'MSSV': 'MSSV',
+        'Họ và Tên': 'Họ và Tên',
+        'Email': 'Email',
+        'Tổng số buổi học': 'Tổng số buổi học',
+        'Số buổi có mặt': 'Số buổi có mặt',
+        'Tỷ lệ chuyên cần (%)': 'Tỷ lệ chuyên cần (%)',
+      });
+
+      // Add data rows for all classes
+      response.data.forEach((classReport: any) => {
+        if (classReport.students && Array.isArray(classReport.students)) {
+          classReport.students.forEach((student: any) => {
+            allRows.push({
+              'Lớp học': `${classReport.class?.code || ''} - ${classReport.class?.name || ''}`,
+              'MSSV': student.studentCode || '',
+              'Họ và Tên': student.fullName || '',
+              'Email': student.email || '',
+              'Tổng số buổi học': student.totalSessions || 0,
+              'Số buổi có mặt': student.attendedSessions || 0,
+              'Tỷ lệ chuyên cần (%)': student.attendanceRate || 0,
+            });
+          });
+        }
+      });
+
+      if (allRows.length <= 1) {
+        alert('Không có dữ liệu sinh viên để xuất.');
+        return;
+      }
+
+      const filename = `BaoCaoChuyenCan_TatCaLop_${new Date().toISOString().split('T')[0]}.csv`;
+      exportToCSV(allRows, filename);
+    } catch (err: any) {
+      console.error('Failed to export reports:', err);
+      const errorMessage = err.response?.data?.message || err.message || 'Lỗi không xác định';
+      alert(`Không thể xuất báo cáo: ${errorMessage}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div style={{minHeight:'100vh',background:'#f5f5f5',padding:'24px'}}>
-      <div style={{maxWidth:900,margin:'0 auto',background:'#fff',padding:24,borderRadius:8,boxShadow:'0 2px 10px rgba(0,0,0,0.08)'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-          <h1 style={{margin:0}}>Báo cáo Tổng quan</h1>
-          <div style={{display:'flex',gap:12,alignItems:'center'}}>
-            <span style={{color:'#555'}}>Xin chào, {user?.fullName}</span>
-            <button onClick={handleLogout} style={{padding:'10px 16px',background:'#dc3545',color:'#fff',border:'none',borderRadius:6,fontWeight:600,cursor:'pointer'}}>Đăng xuất</button>
+    <div className="admin-page">
+      <div className="admin-container">
+        <div className="admin-header">
+          <div className="admin-header-left">
+            <h1>Báo cáo Tổng quan</h1>
+            <p className="admin-subtitle">Trang dành cho ADMIN với chức năng xem báo cáo toàn hệ thống</p>
+          </div>
+          <div className="admin-actions">
+            <span className="user-info">Xin chào, {user?.fullName}</span>
+            <button onClick={handleLogout} className="logout-button">Đăng xuất</button>
           </div>
         </div>
 
-        <p style={{color:'#666',marginTop:0}}>Trang dành cho ADMIN với chức năng xem báo cáo tổng quan toàn hệ thống.</p>
-
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:16,marginTop:16}}>
-          <div style={{border:'1px solid #eee',borderRadius:8,padding:16}}>
-            <h3 style={{marginTop:0}}>Báo cáo hiện diện</h3>
-            <p style={{color:'#666'}}>Sắp có: biểu đồ tỉ lệ điểm danh, theo lớp, theo giảng viên.</p>
+        <div className="admin-cards">
+          <div className="admin-card">
+            <h3>Báo cáo hiện diện</h3>
+            <p>Biểu đồ tỉ lệ điểm danh theo lớp, theo giảng viên (đang phát triển).</p>
           </div>
-          <div style={{border:'1px solid #eee',borderRadius:8,padding:16}}>
-            <h3 style={{marginTop:0}}>Xuất dữ liệu</h3>
-            <p style={{color:'#666'}}>Sắp có: tải CSV/Excel các báo cáo tổng hợp.</p>
+          <div className="admin-card">
+            <h3>Xuất dữ liệu</h3>
+            <p>Xuất báo cáo chuyên cần cho tất cả các lớp học.</p>
+            <button 
+              onClick={handleExportAllReports}
+              disabled={loading}
+              className="primary-button full"
+            >
+              {loading ? 'Đang xuất...' : 'Xuất Báo Cáo Tất Cả Lớp'}
+            </button>
           </div>
-          <div style={{border:'1px solid #eee',borderRadius:8,padding:16}}>
-            <h3 style={{marginTop:0}}>Giám sát thời gian thực</h3>
-            <p style={{color:'#666'}}>Sắp có: thống kê phiên điểm danh đang diễn ra.</p>
+          <div className="admin-card">
+            <h3>Giám sát thời gian thực</h3>
+            <p>Thống kê phiên điểm danh đang diễn ra (đang phát triển).</p>
           </div>
         </div>
       </div>

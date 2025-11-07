@@ -51,6 +51,20 @@ export class AttendanceController {
     return this.attendanceService.checkInOTP(user.id, checkInDto, file);
   }
 
+  @Get('report/all')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  async getAllClassesAttendanceReport() {
+    return this.attendanceService.getAllClassesAttendanceReport();
+  }
+
+  @Get('report/class/:classId')
+  @UseGuards(RolesGuard)
+  @Roles(Role.LECTURER, Role.ADMIN)
+  async getClassAttendanceReport(@Param('classId') classId: string) {
+    return this.attendanceService.getClassAttendanceReport(classId);
+  }
+
   @Get('session/:id')
   @UseGuards(RolesGuard)
   @Roles(Role.LECTURER, Role.ADMIN)

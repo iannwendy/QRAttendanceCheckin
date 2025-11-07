@@ -1,7 +1,7 @@
 .teacher-page {
   min-height: 100vh;
   padding: 24px;
-  background: linear-gradient(180deg, #f8fafc, #eef2ff);
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
 }
 
 .teacher-container {
@@ -16,7 +16,7 @@
   margin-bottom: 30px;
   padding: 18px 24px;
   background: #fff;
-  border-radius: 12px;
+  border-radius: 16px;
   box-shadow: 0 10px 30px rgba(2, 6, 23, 0.08);
 }
 
@@ -38,17 +38,18 @@
 
 .back-button,
 .logout-button {
-  padding: 8px 16px;
+  padding: 10px 16px;
   border: none;
-  border-radius: 4px;
+  border-radius: 12px;
   cursor: pointer;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .back-button {
-  background: #6c757d;
+  background: #111827;
   color: white;
+  box-shadow: 0 6px 16px rgba(17, 24, 39, 0.15);
 }
 
 .back-button:hover {
@@ -56,8 +57,9 @@
 }
 
 .logout-button {
-  background: #dc3545;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
   color: white;
+  box-shadow: 0 8px 20px rgba(239, 68, 68, 0.25);
 }
 
 .logout-button:hover {
@@ -83,7 +85,7 @@
 .card {
   background: white;
   padding: 24px;
-  border-radius: 12px;
+  border-radius: 16px;
   box-shadow: 0 6px 24px rgba(2, 6, 23, 0.06);
 }
 
@@ -109,22 +111,34 @@
   color: #666;
 }
 
+/* countdown styles removed */
+
 .otp-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   text-align: center;
 }
 
-.otp-code {
-  font-size: 48px;
-  font-weight: bold;
-  color: #007bff;
-  letter-spacing: 8px;
-  margin: 20px 0;
-  font-family: 'Courier New', monospace;
+.otp-card .otp-code {
+  font-size: 56px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: 12px;
+  margin: 6px 0 8px 0;
+  padding: 14px 26px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(180deg, #ffffff, #f1f5f9);
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.06);
 }
 
 .otp-info {
-  font-size: 14px;
-  color: #666;
+  font-size: 13px;
+  color: #475569;
 }
 
 .attendance-section {
@@ -133,6 +147,29 @@
   border-radius: 8px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
+.attendance-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 10px 0 20px 0;
+}
+.search-wrapper { flex: 1; display: flex; }
+.search-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 14px;
+  background: #f8fafc;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease, background 0.2s ease;
+}
+.search-input:focus {
+  outline: none;
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+  background: #ffffff;
+}
 
 .attendance-section h2 {
   margin-bottom: 20px;
@@ -140,13 +177,14 @@
 }
 
 .refresh-button {
-  padding: 10px 16px;
-  background: var(--primary);
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
   color: white;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   cursor: pointer;
-  margin-bottom: 20px;
+  font-weight: 700;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.25);
 }
 
 .refresh-button:hover {
@@ -197,6 +235,10 @@
   background: #f8d7da;
   color: #721c24;
 }
+.status-badge.warning {
+  background: #fdecec;
+  color: #b91c1c;
+}
 
 .photo-link {
   color: #007bff;
@@ -231,7 +273,8 @@
 }
 
 .action-button.approve {
-  background: #28a745;
+  background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%);
+  box-shadow: 0 8px 20px rgba(34,197,94,.25);
 }
 
 .action-button.approve:hover {
@@ -239,7 +282,8 @@
 }
 
 .action-button.reject {
-  background: #dc3545;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  box-shadow: 0 8px 20px rgba(239,68,68,.25);
 }
 
 .action-button.reject:hover {

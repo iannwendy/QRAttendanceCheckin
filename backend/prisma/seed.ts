@@ -134,11 +134,13 @@ async function main() {
   // Tạo Lecturer
   const lecturer = await prisma.user.upsert({
     where: { email: 'lecturer@test.com' },
-    update: {},
+    update: {
+      fullName: 'Dương Hữu Phúc',
+    },
     create: {
       email: 'lecturer@test.com',
       passwordHash: lecturerPasswordHash,
-      fullName: 'Giảng Viên Mẫu',
+      fullName: 'Dương Hữu Phúc',
       role: Role.LECTURER,
     },
   });
@@ -172,10 +174,12 @@ async function main() {
   // Tạo 1 lớp học
   const classData = await prisma.class.upsert({
     where: { code: 'INT101' },
-    update: {},
+    update: {
+      name: 'Service-oriented architecture',
+    },
     create: {
       code: 'INT101',
-      name: 'Lập Trình Web',
+      name: 'Service-oriented architecture',
     },
   });
 
@@ -199,35 +203,50 @@ async function main() {
 
   console.log(`✅ Enrolled ${enrollments.length} students to class`);
 
-  // Tạo 2 buổi học mẫu (vị trí TDTU)
+  // Tạo 2 buổi học mẫu (vị trí TDTU) — idempotent theo (classId, title)
   const now = new Date();
-  const session1 = await prisma.session.create({
-    data: {
-      classId: classData.id,
-      title: 'Buổi học 1 - Giới thiệu',
-      startTime: new Date(now.getTime() + 24 * 60 * 60 * 1000), // Ngày mai
-      endTime: new Date(now.getTime() + 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000), // +2 giờ
-      latitude: 10.7287, // TDTU
-      longitude: 106.6967,
-      geofenceRadius: 100,
-      otpSecret: 'JBSWY3DPEHPK3PXP', // Secret mẫu
-    },
-  });
 
-  const session2 = await prisma.session.create({
-    data: {
-      classId: classData.id,
-      title: 'Buổi học 2 - Thực hành',
-      startTime: new Date(now.getTime() + 48 * 60 * 60 * 1000), // 2 ngày sau
-      endTime: new Date(now.getTime() + 48 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000),
-      latitude: 10.7287,
-      longitude: 106.6967,
-      geofenceRadius: 100,
-      otpSecret: 'MFRGG43FMZQXEZLT', // Secret mẫu
-    },
+  const existingSession1 = await prisma.session.findFirst({
+    where: { classId: classData.id, title: 'Buổi học 1 - Giới thiệu' },
   });
+  if (!existingSession1) {
+    await prisma.session.create({
+      data: {
+        classId: classData.id,
+        title: 'Buổi học 1 - Giới thiệu',
+        startTime: new Date(now.getTime() + 24 * 60 * 60 * 1000), // Ngày mai
+        endTime: new Date(now.getTime() + 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000), // +2 giờ
+        latitude: 10.7287, // TDTU
+        longitude: 106.6967,
+        geofenceRadius: 100,
+        otpSecret: 'JBSWY3DPEHPK3PXP', // Secret mẫu
+      },
+    });
+    console.log('✅ Created session: Buổi học 1 - Giới thiệu');
+  } else {
+    console.log('ℹ️  Session existed: Buổi học 1 - Giới thiệu');
+  }
 
-  console.log('✅ Created 2 sessions');
+  const existingSession2 = await prisma.session.findFirst({
+    where: { classId: classData.id, title: 'Buổi học 2 - Thực hành' },
+  });
+  if (!existingSession2) {
+    await prisma.session.create({
+      data: {
+        classId: classData.id,
+        title: 'Buổi học 2 - Thực hành',
+        startTime: new Date(now.getTime() + 48 * 60 * 60 * 1000), // 2 ngày sau
+        endTime: new Date(now.getTime() + 48 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000),
+        latitude: 10.7287,
+        longitude: 106.6967,
+        geofenceRadius: 100,
+        otpSecret: 'MFRGG43FMZQXEZLT', // Secret mẫu
+      },
+    });
+    console.log('✅ Created session: Buổi học 2 - Thực hành');
+  } else {
+    console.log('ℹ️  Session existed: Buổi học 2 - Thực hành');
+  }
 
   console.log('\n🎉 Seed completed!');
   console.log('\n📋 Login credentials:');

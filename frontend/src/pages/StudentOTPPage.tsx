@@ -140,8 +140,11 @@ function StudentOTPPage() {
   return (
     <div className="otp-page">
       <div className="otp-container">
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <div className="otp-header">
+          <div className="otp-header-left">
           <h1>Điểm Danh bằng OTP + Ảnh</h1>
+            <p className="otp-subtitle">Nhập OTP hiển thị trên màn hình lớp và chụp ảnh xác thực</p>
+          </div>
           <button onClick={logout} className="logout-otp">Đăng xuất</button>
         </div>
         {user && (
@@ -176,12 +179,8 @@ function StudentOTPPage() {
               <>
                 <video ref={videoRef} autoPlay playsInline className="video-preview"></video>
                 <div className="camera-actions">
-                  <button type="button" onClick={startCamera} className="camera-button">
-                    Bật Camera
-                  </button>
-                  <button type="button" onClick={capturePhoto} className="camera-button">
-                    Chụp Ảnh
-                  </button>
+                  <button type="button" onClick={startCamera} className="camera-button camera-primary">Bật Camera</button>
+                  <button type="button" onClick={capturePhoto} className="camera-button">Chụp Ảnh</button>
                 </div>
               </>
             ) : (

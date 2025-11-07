@@ -320,3 +320,264 @@ VITE_OTP_STEP_SECONDS=30
 ---
 
 **Hãy tạo toàn bộ code theo đúng đặc tả trên. Viết README chi tiết (tiếng Việt) để người dùng làm theo là chạy được ngay.**
+
+
+
+Dưới đây là **bản đặc tả đề tài phiên bản TECHSTACK TỐI ƯU – DỄ TRIỂN KHAI – DỄ CODE TRÊN CURSOR**.
+Mình chọn stack theo tiêu chí:
+✅ Dễ viết
+✅ Dễ chạy local
+✅ Dễ test qua Tunnel trên điện thoại
+✅ Không phức tạp DevOps
+✅ Code chia 3 service nhưng thực tế gom 1 backend + 1 frontend cho nhẹ
+
+---
+
+# ✅ **ĐẶC TẢ ĐỀ TÀI (PHIÊN BẢN TECHSTACK DỄ TRIỂN KHAI)**
+
+*(Chuẩn để đưa vào Cursor AI và tạo codebase hoàn chỉnh)*
+
+---
+
+# 4. Tên đề tài
+
+**QR Attendance System with GPS Verification, Classroom OTP, and Watermark Photo Evidence**
+
+---
+
+# 5. Đặc tả chi tiết
+
+## ✅ 5.1 Mục tiêu
+
+Triển khai hệ thống điểm danh gồm 3 cơ chế:
+
+1. **Check-in QR + GPS** → chống gian lận vị trí.
+2. **OTP tại lớp (M3)** → dùng khi thiết bị không bật/không cấp quyền GPS.
+3. **Ảnh chụp có watermark (M4)** → làm bằng chứng thực tại chỗ.
+
+---
+
+## ✅ 5.2 Đối tượng sử dụng
+
+### Sinh viên
+
+* Đăng nhập.
+* Quét QR điểm danh (mặc định dùng GPS).
+* Nếu không có GPS → nhập OTP + chụp ảnh watermark.
+
+### Giảng viên
+
+* Tạo lớp.
+* Tạo buổi học (Session).
+* Hiển thị OTP quay vòng tại lớp.
+* Duyệt ảnh check-in (khi dùng M3/M4).
+
+### Admin
+
+* (Tùy chọn) xem báo cáo tổng hợp.
+
+---
+
+## ✅ 5.3 Phạm vi chức năng (phiên bản thực tế đơn giản để code)
+
+### ✅ 1. Auth Module
+
+* Đăng nhập/đăng ký (email + password).
+* JWT access token.
+* Phân quyền (`student`, `lecturer`, `admin`).
+
+### ✅ 2. Class & Session Module
+
+* CRUD lớp học.
+* Gán sinh viên vào lớp.
+* Tạo buổi học (session):
+
+  * thời gian
+  * vị trí GPS
+  * bán kính geofence
+* Tạo **QR token động** (JWT exp 60s).
+* Tạo **OTP lớp** (TOTP 30s/60s).
+
+### ✅ 3. Attendance Module
+
+#### ✅ Mặc định: QR + GPS
+
+* SV quét QR
+* Frontend gửi payload:
+
+  ```json
+  {
+    "qrToken": "...",
+    "lat": 10.123,
+    "lng": 106.456,
+    "accuracy": 15
+  }
+  ```
+* Server kiểm tra QR token + distance + student in class.
+
+#### ✅ Nếu không GPS: OTP + ảnh watermark
+
+* App yêu cầu:
+
+  * nhập OTP đang hiển thị trên màn hình lớp
+  * chụp ảnh
+* Ảnh watermark phải gồm:
+
+  * studentCode
+  * sessionId
+  * OTP
+  * timestamp
+* Server lưu ảnh + metadata
+* Tự động `PENDING` để giảng viên duyệt.
+
+### ✅ 4. Reporting Module
+
+* Danh sách điểm danh theo buổi
+* Xuất overview điểm danh theo lớp/học kỳ
+* Xem ảnh minh chứng
+
+---
+
+## ✅ 5.4 Ngoài phạm vi
+
+* Không xử lý GPS spoofing nâng cao.
+* Không nhận diện khuôn mặt.
+* Không tích hợp lịch học chính thức toàn trường.
+
+---
+
+# ✅ 6. TechStack đề xuất (chuẩn nhẹ – chạy cực dễ – code nhanh trên Cursor)
+
+## ✅ Backend (API)
+
+**Node.js + NestJS**
+
+* Dễ sinh module/service/controller
+* Dễ validate (class-validator)
+* Dễ tạo guard cho JWT + roles
+* Dễ mở rộng sau này
+
+### Libraries
+
+* JWT: `@nestjs/jwt`
+* TOTP: `otplib`
+* QR: `qrcode`
+* Watermark (server optional): `sharp`
+* CORS: built-in
+* DB ORM: `Prisma` (gợi ý) hoặc `TypeORM`
+
+### ✅ Database
+
+**PostgreSQL** (hoặc MySQL tùy bạn)
+
+* Chạy bằng Docker (local)
+* Schema đơn giản:
+
+  * User
+  * Class
+  * Enrollment
+  * Session
+  * Attendance
+  * Evidence (ảnh)
+
+---
+
+## ✅ Frontend (Web)
+
+**React + Vite**
+
+* Nhẹ, build nhanh, dễ quét QR + camera + watermark
+* Cursor hỗ trợ auto-refactor rất tốt với React
+
+### Libraries
+
+* QR Scanner: `html5-qrcode` hoặc `@yudiel/react-qr-scanner`
+* Camera: native getUserMedia
+* Watermark: canvas bằng `html2canvas` hoặc custom `<canvas>`
+* State: Zustand hoặc einfache React state
+* HTTP: axios
+* QR render: `qrcode.react` (cho giảng viên)
+
+---
+
+## ✅ Storage ảnh
+
+**Cloudflare R2** hoặc **Local folder** (developer dễ làm nhất)
+
+* Dev = simple local directory,
+* Prod = dùng R2 / Supabase Storage đều ok.
+
+---
+
+## ✅ Triển khai dev/test (không cần deploy thật)
+
+* Dùng **Cloudflare Tunnel** hoặc **ngrok**:
+
+  * `tunnel --url http://localhost:3000` → frontend
+  * `tunnel --url http://localhost:8080` → backend
+* Điện thoại truy cập bằng HTTPS →
+  ✅ login, ✅ camera, ✅ GPS, ✅ upload ảnh → hoạt động 100% như deploy thật.
+
+---
+
+# ✅ 7. Cấu trúc thư mục gợi ý (Cursor thích)
+
+```
+/backend
+  /src
+    /auth
+    /user
+    /class
+    /session
+    /attendance
+    /evidence
+    /common
+  prisma/schema.prisma
+
+/frontend
+  /src
+    /pages
+    /components
+    /features/auth
+    /features/scan
+    /features/otp
+    /features/camera
+    /features/teacher
+```
+
+---
+
+# ✅ 8. API endpoints (để Cursor generate code)
+
+### Auth
+
+```
+POST /auth/register
+POST /auth/login
+GET  /auth/me
+```
+
+### Class & Session
+
+```
+POST /class
+GET  /class/:id
+POST /class/:id/enroll
+POST /session
+GET  /session/:id/qr      (return current QR token)
+GET  /session/:id/otp     (return current classroom OTP)
+```
+
+### Attendance
+
+```
+POST /attendance/checkin-qr
+POST /attendance/checkin-otp
+GET  /attendance/session/:id
+```
+
+### Evidence
+
+```
+POST /evidence/upload  (file upload)
+```
