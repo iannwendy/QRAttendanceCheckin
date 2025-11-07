@@ -214,3 +214,81 @@ MIT
 - Add monitoring and logging
 - Configure rate limiting
 
+## Database ERD
+
+![ERD](docs/erd.png)
+
+Fallback (Mermaid):
+
+```mermaid
+%% See editable source at docs/erd.mmd
+erDiagram
+    USER {
+        id string
+        email string
+        passwordHash string
+        fullName string
+        studentCode string
+        role string
+        createdAt date
+        updatedAt date
+    }
+
+    CLASSROOM {
+        id string
+        code string
+        name string
+        createdAt date
+    }
+
+    ENROLLMENT {
+        id string
+        classId string
+        studentId string
+    }
+
+    SESSION_REC {
+        id string
+        classId string
+        title string
+        startTime date
+        endTime date
+        latitude float
+        longitude float
+        geofenceRadius int
+        otpSecret string
+        createdAt date
+    }
+
+    ATTENDANCE_REC {
+        id string
+        sessionId string
+        studentId string
+        method string
+        status string
+        lat float
+        lng float
+        accuracy float
+        otpUsed string
+        createdAt date
+        updatedAt date
+    }
+
+    EVIDENCE_REC {
+        id string
+        attendanceId string
+        photoUrl string
+        metaJson string
+    }
+
+    USER ||--o{ ENROLLMENT : "enrolls"
+    CLASSROOM ||--o{ ENROLLMENT : "has"
+
+    CLASSROOM ||--o{ SESSION_REC : "has"
+
+    SESSION_REC ||--o{ ATTENDANCE_REC : "has"
+    USER ||--o{ ATTENDANCE_REC : "has"
+
+    ATTENDANCE_REC ||--o| EVIDENCE_REC : "evidence"
+```
+
