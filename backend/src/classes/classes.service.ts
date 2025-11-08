@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CreateClassDto } from './dto/create-class.dto';
 import { EnrollStudentsDto } from './dto/enroll-students.dto';
@@ -14,10 +18,11 @@ export class ClassesService {
           orderBy: { createdAt: 'desc' },
           select: {
             id: true,
+            publicCode: true,
             title: true,
             startTime: true,
             endTime: true,
-          },
+          } as Record<string, true>,
         },
         _count: {
           select: {
@@ -123,4 +128,3 @@ export class ClassesService {
     return enrollments;
   }
 }
-

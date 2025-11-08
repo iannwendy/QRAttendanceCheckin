@@ -12,4 +12,3 @@ export class EvidenceService {
     return `/uploads/${filename}`;
   }
 }
-

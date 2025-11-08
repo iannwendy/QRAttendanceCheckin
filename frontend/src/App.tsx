@@ -6,6 +6,7 @@ import StudentOTPPage from './pages/StudentOTPPage';
 import TeacherDashboard from './pages/TeacherDashboard';
 import TeacherSessionPage from './pages/TeacherSessionPage';
 import CreateSessionPage from './pages/CreateSessionPage';
+import EditSessionPage from './pages/EditSessionPage';
 import CreateClassPage from './pages/CreateClassPage';
 import StudentAutoCheckin from './pages/StudentAutoCheckin';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -53,6 +54,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['LECTURER']}>
               <TeacherSessionPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/teacher/session/:id/edit"
+          element={
+            <ProtectedRoute allowedRoles={['LECTURER']}>
+              <EditSessionPage />
             </ProtectedRoute>
           }
         />

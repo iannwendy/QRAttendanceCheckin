@@ -11,4 +11,3 @@ export class EnrollStudentsDto {
   @IsString({ each: true })
   userIds?: string[];
 }
-

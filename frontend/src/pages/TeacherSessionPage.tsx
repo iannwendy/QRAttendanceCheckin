@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuthStore } from '../store/authStore';
@@ -10,6 +10,7 @@ interface Attendance {
   method: string;
   status: string;
   createdAt: string;
+  updatedAt?: string;
   student: {
     id: string;
     fullName: string;
@@ -17,6 +18,16 @@ interface Attendance {
   };
   evidence?: {
     photoUrl: string;
+  };
+}
+
+interface SessionInfo {
+  id: string;
+  title: string;
+  publicCode: string | null;
+  class?: {
+    name: string;
+    code: string;
   };
 }
 
@@ -30,9 +41,42 @@ function TeacherSessionPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
+
+  const recentApproved = useMemo(() => {
+    const successful = attendances.filter((a) => a.status === 'APPROVED' || a.status === 'TOO_FAR');
+    successful.sort((a, b) => {
+      const bTime = new Date(b.updatedAt ?? b.createdAt).getTime();
+      const aTime = new Date(a.updatedAt ?? a.createdAt).getTime();
+      return bTime - aTime;
+    });
+    return successful.slice(0, 10);
+  }, [attendances]);
+
+  const [effectiveId, setEffectiveId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (id) {
+    const resolveId = async () => {
+      if (!id) return;
+      const looksLikeCode = /^[A-HJ-NP-Z2-9]{6}$/.test(id);
+      if (looksLikeCode) {
+        try {
+          const res = await api.get(`/sessions/code/${id}`);
+          setEffectiveId(res.data.id);
+          setSessionInfo(res.data as SessionInfo);
+        } catch (e) {
+          setEffectiveId(null);
+        }
+      } else {
+        setEffectiveId(id);
+      }
+    };
+    resolveId();
+  }, [id]);
+
+  useEffect(() => {
+    if (effectiveId) {
+      fetchSessionInfo();
       fetchQR();
       fetchOTP();
       fetchAttendances(true); // initial load shows spinner
@@ -50,12 +94,22 @@ function TeacherSessionPage() {
         clearInterval(attInterval);
       };
     }
-  }, [id]);
+  }, [effectiveId]);
+
+  const fetchSessionInfo = async () => {
+    if (!effectiveId) return;
+    try {
+      const response = await api.get(`/sessions/${effectiveId}`);
+      setSessionInfo(response.data as SessionInfo);
+    } catch (err) {
+      console.error('Failed to fetch session info:', err);
+    }
+  };
 
   const fetchQR = async () => {
-    if (!id) return;
+    if (!effectiveId) return;
     try {
-      const response = await api.get(`/sessions/${id}/qr`);
+      const response = await api.get(`/sessions/${effectiveId}/qr`);
       const token: string = response.data.token || JSON.stringify(response.data.payload);
       // Prefer backend-provided deepLink (uses current FRONTEND_URL), fallback to env or origin
       const deep = response.data.deepLink as string | undefined;
@@ -73,9 +127,9 @@ function TeacherSessionPage() {
   };
 
   const fetchOTP = async () => {
-    if (!id) return;
+    if (!effectiveId) return;
     try {
-      const response = await api.get(`/sessions/${id}/otp`);
+      const response = await api.get(`/sessions/${effectiveId}/otp`);
       setOtp(response.data.otp || '');
       setError('');
     } catch (err: any) {
@@ -94,10 +148,10 @@ function TeacherSessionPage() {
   };
 
   const fetchAttendances = async (showSpinner: boolean = false) => {
-    if (!id) return;
+    if (!effectiveId) return;
     if (showSpinner) setLoading(true);
     try {
-      const response = await api.get(`/attendance/session/${id}`);
+      const response = await api.get(`/attendance/session/${effectiveId}`);
       setAttendances((prev) => {
         const next = response.data as typeof prev;
         // Avoid unnecessary re-renders: shallow compare by id+status+createdAt
@@ -144,7 +198,16 @@ function TeacherSessionPage() {
     <div className="teacher-page">
       <div className="teacher-container">
         <div className="session-header">
-          <h1>Quản lý Buổi Học</h1>
+          <div className="session-header-left">
+            <h1>{sessionInfo?.title || 'Quản lý Buổi Học'}</h1>
+            <div className="session-subtitle">
+              {sessionInfo?.class && (
+                <span className="session-class-name">
+                  {sessionInfo.class.code} · {sessionInfo.class.name}
+                </span>
+              )}
+            </div>
+          </div>
           <div className="header-actions">
             <button onClick={handleBackToDashboard} className="back-button">
               ← Về danh sách
@@ -177,14 +240,69 @@ function TeacherSessionPage() {
                 <>
                   <div className="otp-code">{otp}</div>
                   <p className="otp-info">OTP tự động đổi mỗi 1 phút</p>
+                  {sessionInfo?.publicCode ? (
+                    <div className="session-code-inline">
+                      <span className="session-code-label">Mã buổi:</span>
+                      <span className="session-code-value">{sessionInfo.publicCode}</span>
+                    </div>
+                  ) : (
+                    <div className="session-code-inline missing">Mã buổi: Chưa có</div>
+                  )}
                 </>
               ) : (
                 <>
                   <div className="otp-code">Loading...</div>
                   <p className="otp-info">Đang tải OTP...</p>
+                  {sessionInfo?.publicCode ? (
+                    <div className="session-code-inline">
+                      <span className="session-code-label">Mã buổi:</span>
+                      <span className="session-code-value">{sessionInfo.publicCode}</span>
+                    </div>
+                  ) : (
+                    <div className="session-code-inline missing">Mã buổi: Chưa có</div>
+                  )}
                 </>
               )}
             </div>
+          </div>
+          <div className="card recent-card">
+            <h2>Sinh viên vừa điểm danh</h2>
+            {recentApproved.length > 0 ? (
+              <ul className="recent-list">
+                {recentApproved.map((attendance) => {
+                  const getMethodInfo = () => {
+                    // Nếu status là TOO_FAR, hiển thị "Ở xa" với màu đỏ
+                    if (attendance.status === 'TOO_FAR') {
+                      return { text: 'Ở xa', className: 'method-far' };
+                    }
+                    // Nếu là QR_GPS, hiển thị "QR" với màu xanh lá
+                    if (attendance.method === 'QR_GPS') {
+                      return { text: 'QR', className: 'method-qr' };
+                    }
+                    // Nếu là OTP_PHOTO, hiển thị "OTP + Ảnh" với màu xanh dương
+                    if (attendance.method === 'OTP_PHOTO') {
+                      return { text: 'OTP + Ảnh', className: 'method-otp' };
+                    }
+                    // Các trường hợp khác (thủ công)
+                    return { text: 'Thủ công', className: 'method-manual' };
+                  };
+                  const methodInfo = getMethodInfo();
+                  return (
+                    <li key={attendance.id} className="recent-item">
+                      <div className="recent-student">
+                        <span className="student-code">{attendance.student.studentCode || 'N/A'}</span>
+                        <span className="student-name">{attendance.student.fullName}</span>
+                      </div>
+                      <span className={`recent-method ${methodInfo.className}`}>
+                        {methodInfo.text}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <div className="recent-empty">Chưa có sinh viên điểm danh</div>
+            )}
           </div>
         </div>
         <div className="attendance-section">
@@ -233,11 +351,30 @@ function TeacherSessionPage() {
                       <td>{attendance.student.studentCode || 'N/A'}</td>
                       <td>{attendance.student.fullName}</td>
                       <td>
-                        {attendance.method === 'QR_GPS'
-                          ? 'QR + GPS'
-                          : attendance.method === 'OTP_PHOTO'
-                          ? 'OTP + Ảnh'
-                          : 'Tự thêm'}
+                        {(() => {
+                          // Nếu status là TOO_FAR, hiển thị "Ở xa" với màu đỏ
+                          if (attendance.status === 'TOO_FAR') {
+                            return (
+                              <span className="method-badge method-far">Ở xa</span>
+                            );
+                          }
+                          // Nếu là QR_GPS, hiển thị "QR + GPS" với màu xanh lá
+                          if (attendance.method === 'QR_GPS') {
+                            return (
+                              <span className="method-badge method-qr">QR + GPS</span>
+                            );
+                          }
+                          // Nếu là OTP_PHOTO, hiển thị "OTP + Ảnh" với màu xanh dương
+                          if (attendance.method === 'OTP_PHOTO') {
+                            return (
+                              <span className="method-badge method-otp">OTP + Ảnh</span>
+                            );
+                          }
+                          // Các trường hợp khác (thủ công)
+                          return (
+                            <span className="method-badge method-manual">Tự thêm</span>
+                          );
+                        })()}
                       </td>
                       <td>
                         <span

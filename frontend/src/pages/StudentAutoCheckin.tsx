@@ -15,42 +15,87 @@ function StudentAutoCheckin() {
   const { isAuthenticated } = useAuthStore();
   const [message, setMessage] = useState('Đang xử lý...');
   const hasCheckedRef = useRef(false);
+  const [sessionDetails, setSessionDetails] = useState<{
+    publicCode?: string | null;
+    className?: string | null;
+    sessionTitle?: string | null;
+  } | null>(null);
 
   useEffect(() => {
-    if (!token || hasCheckedRef.current) {
+    if (!token) {
       setMessage('Thiếu token. Vui lòng quét lại QR.');
       return;
     }
-    hasCheckedRef.current = true;
+    if (hasCheckedRef.current) {
+      return;
+    }
 
-    // Helper: extract sessionId from token (JWT or JSON payload)
-    const extractSessionId = (t: string): string | null => {
+    const parsePayload = (payload: any) => {
+      if (!payload) return null;
+      return {
+        sessionId: payload.sessionId || null,
+        publicCode: payload.publicCode || null,
+        className: payload.className || null,
+        sessionTitle: payload.sessionTitle || null,
+      };
+    };
+
+    const extractInfo = (t: string) => {
       try {
-        // Try JWT decode
         const parts = t.split('.');
         if (parts.length === 3) {
-          const payload = JSON.parse(atob(parts[1]));
-          if (payload.sessionId) return payload.sessionId;
+          const payload = JSON.parse(
+            atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')),
+          );
+          const info = parsePayload(payload);
+          if (info?.sessionId) return info;
         }
       } catch (_) {}
       try {
         const obj = JSON.parse(t);
-        if (obj.sessionId) return obj.sessionId;
+        const info = parsePayload(obj);
+        if (info?.sessionId) return info;
       } catch (_) {}
       return null;
     };
 
-    const sessionId = extractSessionId(token);
+    const info = extractInfo(token);
+    if (!info || !info.sessionId) {
+      setMessage('Thiếu token. Vui lòng quét lại QR.');
+      return;
+    }
 
-    // Nếu chưa đăng nhập: lưu token (+ sessionId) và chuyển về login
+    hasCheckedRef.current = true;
+    setSessionDetails({
+      publicCode: info.publicCode,
+      className: info.className,
+      sessionTitle: info.sessionTitle,
+    });
+
+    const publicCode = info.publicCode || '';
+
+    const storeMetaForOtp = () => {
+      if (publicCode) {
+        localStorage.setItem('pendingPublicCode', publicCode);
+      }
+      if (info.className || info.sessionTitle) {
+        localStorage.setItem(
+          'pendingSessionMeta',
+          JSON.stringify({
+            className: info.className || '',
+            sessionTitle: info.sessionTitle || '',
+          }),
+        );
+      }
+    };
+
     if (!isAuthenticated) {
       localStorage.setItem('pendingCheckinToken', token);
-      if (sessionId) localStorage.setItem('pendingSessionId', sessionId);
+      storeMetaForOtp();
       navigate('/login');
       return;
     }
 
-    // Đã đăng nhập: thử lấy GPS và check-in tự động
     const doCheckin = (lat: number, lng: number, accuracy: number) => {
       api
         .post('/attendance/checkin-qr', {
@@ -61,14 +106,14 @@ function StudentAutoCheckin() {
         })
         .then(() => {
           localStorage.removeItem('pendingCheckinToken');
+          localStorage.removeItem('pendingPublicCode');
+          localStorage.removeItem('pendingSessionMeta');
           setMessage('✅ Điểm danh thành công!');
           setTimeout(() => navigate('/student/scan'), 1200);
         })
         .catch((err) => {
-          // Không fallback OTP ở đây; chỉ báo lỗi và về trang quét để thử lại
           const msg = err?.response?.data?.message || 'Điểm danh thất bại';
           if (msg.includes('điểm danh rồi') || msg.includes('Điểm danh rồi')) {
-            // Trường hợp double-submit (StrictMode/ghi đè), coi như thành công
             setMessage('✅ Bạn đã điểm danh');
           } else {
             setMessage(`❌ ${msg}`);
@@ -87,10 +132,9 @@ function StudentAutoCheckin() {
           );
         },
         () => {
-          // Không lấy được GPS -> chuyển sang OTP + Ảnh
-          if (sessionId) {
-            localStorage.setItem('pendingSessionId', sessionId);
-            navigate(`/student/otp?sessionId=${encodeURIComponent(sessionId)}`);
+          storeMetaForOtp();
+          if (publicCode) {
+            navigate(`/student/otp?code=${encodeURIComponent(publicCode)}`);
           } else {
             navigate('/student/otp');
           }
@@ -98,19 +142,54 @@ function StudentAutoCheckin() {
         { enableHighAccuracy: true, timeout: 8000 },
       );
     } else {
-      // Thiết bị không hỗ trợ GPS -> OTP
-      if (sessionId) {
-        localStorage.setItem('pendingSessionId', sessionId);
-        navigate(`/student/otp?sessionId=${encodeURIComponent(sessionId)}`);
+      storeMetaForOtp();
+      if (publicCode) {
+        navigate(`/student/otp?code=${encodeURIComponent(publicCode)}`);
       } else {
         navigate('/student/otp');
       }
     }
   }, [token, isAuthenticated, navigate]);
 
+  const hasDetails =
+    sessionDetails &&
+    (sessionDetails.className || sessionDetails.sessionTitle || sessionDetails.publicCode);
+
   return (
-    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center'}}>
-      <div>{message}</div>
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px',
+      }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center' }}>
+        {hasDetails && (
+          <div
+            style={{
+              padding: '14px 20px',
+              borderRadius: 16,
+              background: 'linear-gradient(135deg, #eef2ff, #dbeafe)',
+              boxShadow: '0 12px 30px rgba(30,64,175,0.15)',
+              textAlign: 'center',
+              minWidth: 260,
+            }}
+          >
+            <div style={{ fontWeight: 700, color: '#1e3a8a', fontSize: 16 }}>
+              {(sessionDetails?.className || 'Môn học')} ·{' '}
+              {(sessionDetails?.sessionTitle || 'Buổi học')}
+            </div>
+            {sessionDetails?.publicCode && (
+              <div style={{ marginTop: 6, fontSize: 13, color: '#1d4ed8', fontWeight: 600 }}>
+                Mã buổi: {sessionDetails.publicCode}
+              </div>
+            )}
+          </div>
+        )}
+        <div>{message}</div>
+      </div>
     </div>
   );
 }

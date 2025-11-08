@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import api from '../store/api';
 import dayjs from 'dayjs';
@@ -8,8 +8,20 @@ import { useLocation } from 'react-router-dom';
 function StudentOTPPage() {
   const { search } = useLocation();
   const urlParams = new URLSearchParams(search);
-  const initialSessionId = urlParams.get('sessionId') || localStorage.getItem('pendingSessionId') || '';
-  const [sessionId, setSessionId] = useState(initialSessionId);
+  const storedMetaRaw = localStorage.getItem('pendingSessionMeta');
+  let initialMeta: { className?: string; sessionTitle?: string } | null = null;
+  if (storedMetaRaw) {
+    try {
+      initialMeta = JSON.parse(storedMetaRaw);
+    } catch (_) {
+      initialMeta = null;
+    }
+  }
+  const initialPublicCode = (urlParams.get('code') || localStorage.getItem('pendingPublicCode') || '').toUpperCase();
+  const [publicCode, setPublicCode] = useState(initialPublicCode);
+  const [resolvedSessionId, setResolvedSessionId] = useState<string>('');
+  const [sessionMeta, setSessionMeta] = useState<{ className?: string; sessionTitle?: string } | null>(initialMeta);
+  const [lookupMessage, setLookupMessage] = useState('');
   const [otp, setOtp] = useState('');
   const [photo, setPhoto] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -18,6 +30,45 @@ function StudentOTPPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { user, logout } = useAuthStore();
+
+  useEffect(() => {
+    const trimmed = publicCode.trim().toUpperCase();
+    if (!trimmed) {
+      setResolvedSessionId('');
+      setSessionMeta(null);
+      setLookupMessage('');
+      return;
+    }
+    if (trimmed.length < 3) {
+      setResolvedSessionId('');
+      setSessionMeta(null);
+      setLookupMessage('');
+      return;
+    }
+
+    const timeout = setTimeout(async () => {
+      try {
+        const response = await api.get(`/sessions/code/${trimmed}`);
+        setResolvedSessionId(response.data.id);
+        const meta = {
+          className: response.data.class?.name || '',
+          sessionTitle: response.data.title || '',
+        };
+        setSessionMeta(meta);
+        setLookupMessage('');
+        localStorage.setItem('pendingPublicCode', trimmed);
+        localStorage.setItem('pendingSessionMeta', JSON.stringify(meta));
+      } catch (err) {
+        setResolvedSessionId('');
+        setSessionMeta(null);
+        setLookupMessage('Không tìm thấy mã buổi');
+      }
+    }, 350);
+
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [publicCode]);
 
   const startCamera = async () => {
     try {
@@ -53,7 +104,7 @@ function StudentOTPPage() {
 
     ctx.fillStyle = 'white';
     ctx.font = 'bold 20px Arial';
-    const watermarkText = `${user.studentCode || 'N/A'} - ${sessionId || 'N/A'} - ${otp || 'N/A'} - ${dayjs().format('YYYY-MM-DD HH:mm:ss')}`;
+    const watermarkText = `${user.studentCode || 'N/A'} - ${publicCode || 'N/A'} - ${otp || 'N/A'} - ${dayjs().format('YYYY-MM-DD HH:mm:ss')}`;
     ctx.fillText(watermarkText, 10, canvas.height - 50);
 
     // Lưu ảnh
@@ -69,7 +120,7 @@ function StudentOTPPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!photo || !sessionId || !otp || !user) {
+    if (!photo || !resolvedSessionId || !otp || !user) {
       setError('Vui lòng điền đầy đủ thông tin và chụp ảnh');
       return;
     }
@@ -106,7 +157,7 @@ function StudentOTPPage() {
 
       const formData = new FormData();
       formData.append('file', finalBlob, 'photo.jpg');
-      formData.append('sessionId', sessionId);
+      formData.append('sessionId', resolvedSessionId);
       formData.append('otp', otp);
       formData.append(
         'meta',
@@ -123,12 +174,16 @@ function StudentOTPPage() {
       });
 
       setSuccess(true);
+      setLookupMessage('');
       setTimeout(() => {
         setSuccess(false);
         setPhoto(null);
-        setSessionId('');
+        setPublicCode('');
+        setResolvedSessionId('');
+        setSessionMeta(null);
         setOtp('');
-        localStorage.removeItem('pendingSessionId');
+        localStorage.removeItem('pendingPublicCode');
+        localStorage.removeItem('pendingSessionMeta');
       }, 3000);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Điểm danh thất bại');
@@ -154,14 +209,28 @@ function StudentOTPPage() {
         )}
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>Session ID</label>
+            <label>Mã buổi</label>
             <input
               type="text"
-              value={sessionId}
-              onChange={(e) => setSessionId(e.target.value)}
+              value={publicCode}
+              onChange={(e) => {
+                const raw = e.target.value.toUpperCase();
+                const filtered = raw.replace(/[^A-Z0-9]/g, '');
+                setPublicCode(filtered);
+              }}
               required
-              placeholder="Nhập Session ID"
+              placeholder="Nhập mã buổi (VD: ABC123)"
+              maxLength={6}
             />
+            {sessionMeta ? (
+              <div className="session-meta-hint">
+                {sessionMeta.className || 'Môn học'} · {sessionMeta.sessionTitle || 'Buổi học'}
+              </div>
+            ) : (
+              lookupMessage && publicCode && (
+                <div className="session-meta-warning">{lookupMessage}</div>
+              )
+            )}
           </div>
           <div className="form-group">
             <label>OTP</label>

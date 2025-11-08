@@ -9,6 +9,7 @@
   - **Loại**: một–nhiều (mỗi lớp có nhiều buổi; mỗi buổi thuộc một lớp)
   - **Khóa ngoại**: `Session.classId → Class.id`.
   - **Chỉ mục**: `Session.classId` có index để truy vấn nhanh theo lớp.
+  - **Mã công khai**: `Session.publicCode` (string, unique, tối đa 6 ký tự) - mã ngắn gọn do giảng viên đặt để sinh viên dễ nhập khi điểm danh bằng OTP. Bắt buộc khi tạo buổi học mới.
   - **Xóa dây chuyền**: xóa `Class` sẽ xóa các `Session` liên quan.
 
 - **Session —< Attendance**
@@ -34,6 +35,7 @@
 - **Unique**:
   - `User.email`, `User.studentCode?`
   - `Class.code`
+  - `Session.publicCode` (mã buổi ngắn gọn, tối đa 6 ký tự, bắt buộc)
   - `Enrollment (classId, studentId)`
   - `Attendance (sessionId, studentId)`
   - `Evidence.attendanceId`

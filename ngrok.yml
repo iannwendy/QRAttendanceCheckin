@@ -1,0 +1,11 @@
+version: "2"
+authtoken: 358bwjdO24yrfPfeCjEnPn0tr1y_3zfbxRGoTLDPmc2cH2jwX
+tunnels:
+  backend:
+    proto: http
+    addr: 8080
+    domain: tiera-tromometrical-walter.ngrok-free.dev
+  frontend:
+    proto: http
+    addr: 3000
+

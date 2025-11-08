@@ -13,6 +13,7 @@ function CreateSessionPage() {
     latitude: '',
     longitude: '',
     geofenceRadius: '100',
+    publicCode: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -20,6 +21,11 @@ function CreateSessionPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    const trimmedCode = formData.publicCode.trim().toUpperCase();
+    if (!trimmedCode) {
+      setError('Vui lòng nhập mã buổi (tối đa 6 ký tự).');
+      return;
+    }
     setLoading(true);
 
     try {
@@ -31,9 +37,11 @@ function CreateSessionPage() {
         latitude: parseFloat(formData.latitude),
         longitude: parseFloat(formData.longitude),
         geofenceRadius: parseInt(formData.geofenceRadius),
+        publicCode: trimmedCode,
       });
 
-      navigate(`/teacher/session/${response.data.id}`);
+      const slug = response.data?.publicCode || response.data?.id;
+      navigate(`/teacher/session/${slug}`);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Không thể tạo buổi học');
     } finally {
@@ -98,13 +106,35 @@ function CreateSessionPage() {
           </div>
 
           <div className="form-section">
+            <h3>Mã buổi</h3>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Public code (tối đa 6 ký tự)</label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={formData.publicCode}
+                  onChange={(e) => {
+                    const raw = e.target.value.toUpperCase();
+                    const filtered = raw.replace(/[^A-Z0-9]/g, '');
+                    setFormData({ ...formData, publicCode: filtered });
+                  }}
+                  required
+                  placeholder="VD: ABC123"
+                />
+                <small>Giảng viên cần đặt mã buổi duy nhất (6 ký tự chữ hoặc số).</small>
+              </div>
+            </div>
+          </div>
+
+          <div className="form-section">
             <h3>GPS Location</h3>
             <button
               type="button"
               onClick={handleGetCurrentLocation}
               className="location-button"
             >
-              📍 Lấy vị trí hiện tại
+              Lấy vị trí hiện tại
             </button>
             <div className="form-row">
               <div className="form-group">

@@ -52,6 +52,7 @@ model Session {
   longitude      Float
   geofenceRadius Int       // mét
   otpSecret      String    // secret TOTP cho buổi học
+  publicCode     String?   @unique
   createdAt      DateTime  @default(now())
 
   class       Class       @relation(fields: [classId], references: [id], onDelete: Cascade)

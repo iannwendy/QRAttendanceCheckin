@@ -10,4 +10,3 @@ import { EvidenceModule } from '../evidence/evidence.module';
   providers: [AttendanceService],
 })
 export class AttendanceModule {}
-

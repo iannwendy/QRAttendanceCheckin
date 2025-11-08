@@ -44,7 +44,7 @@ export class AttendanceService {
   async checkInQR(studentId: string, checkInDto: CheckInQRDto) {
     // Verify QR token - có thể là JWT signed hoặc JSON string
     let qrPayload = this.sessionsService.verifyQRToken(checkInDto.qrToken);
-    
+
     // Nếu không phải JWT, thử parse JSON
     if (!qrPayload) {
       try {
@@ -60,16 +60,24 @@ export class AttendanceService {
         // Ignore
       }
     }
-    
+
     // Cuối cùng, thử decode JWT payload không verify chữ ký (fallback demo)
     if (!qrPayload) {
       try {
         const parts = checkInDto.qrToken.split('.');
         if (parts.length === 3) {
-          const json = Buffer.from(parts[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
+          const json = Buffer.from(
+            parts[1].replace(/-/g, '+').replace(/_/g, '/'),
+            'base64',
+          ).toString('utf8');
           const decoded = JSON.parse(json);
           const now = Math.floor(Date.now() / 1000);
-          if (decoded && decoded.sessionId && decoded.exp && decoded.exp >= now) {
+          if (
+            decoded &&
+            decoded.sessionId &&
+            decoded.exp &&
+            decoded.exp >= now
+          ) {
             qrPayload = decoded;
           }
         }
@@ -77,7 +85,7 @@ export class AttendanceService {
         // ignore
       }
     }
-    
+
     if (!qrPayload) {
       throw new BadRequestException('QR token không hợp lệ hoặc đã hết hạn');
     }
@@ -194,9 +202,9 @@ export class AttendanceService {
     if (!file) {
       throw new BadRequestException('File ảnh là bắt buộc');
     }
-    // Get session
-    const session = await this.prisma.session.findUnique({
-      where: { id: checkInDto.sessionId },
+    const identifier = checkInDto.sessionId.trim();
+    let session = await this.prisma.session.findUnique({
+      where: { id: identifier },
       include: {
         class: {
           include: {
@@ -207,6 +215,21 @@ export class AttendanceService {
         },
       },
     });
+
+    if (!session) {
+      session = await this.prisma.session.findFirst({
+        where: { publicCode: identifier.toUpperCase() } as any,
+        include: {
+          class: {
+            include: {
+              students: {
+                where: { studentId },
+              },
+            },
+          },
+        },
+      });
+    }
 
     if (!session) {
       throw new BadRequestException('Buổi học không tồn tại');
@@ -231,7 +254,7 @@ export class AttendanceService {
     const existing = await this.prisma.attendance.findUnique({
       where: {
         sessionId_studentId: {
-          sessionId: checkInDto.sessionId,
+          sessionId: session.id,
           studentId,
         },
       },
@@ -255,14 +278,14 @@ export class AttendanceService {
       });
     } else {
       attendance = await this.prisma.attendance.create({
-      data: {
-        sessionId: checkInDto.sessionId,
-        studentId,
+        data: {
+          sessionId: session.id,
+          studentId,
           method: AttendanceMethod.OTP_PHOTO,
           status: AttendanceStatus.PENDING,
-        otpUsed: checkInDto.otp,
-      },
-    });
+          otpUsed: checkInDto.otp,
+        },
+      });
     }
 
     // Create evidence
@@ -299,10 +322,7 @@ export class AttendanceService {
         },
         evidence: true,
       },
-      orderBy: [
-        { student: { studentCode: 'asc' } },
-        { updatedAt: 'desc' },
-      ],
+      orderBy: [{ student: { studentCode: 'asc' } }, { updatedAt: 'desc' }],
     });
   }
 
@@ -361,7 +381,7 @@ export class AttendanceService {
 
     for (const enrollment of classData.students) {
       const student = enrollment.student;
-      
+
       // Get all attendances for this student in this class
       const attendances = await this.prisma.attendance.findMany({
         where: {
@@ -384,9 +404,8 @@ export class AttendanceService {
       const approvedCount = attendances.filter(
         (a) => a.status === AttendanceStatus.APPROVED,
       ).length;
-      const attendanceRate = totalSessions > 0 
-        ? (approvedCount / totalSessions) * 100 
-        : 0;
+      const attendanceRate =
+        totalSessions > 0 ? (approvedCount / totalSessions) * 100 : 0;
 
       // Build session attendance details
       const sessionDetails = classData.sessions.map((session) => {
@@ -460,7 +479,7 @@ export class AttendanceService {
 
       for (const enrollment of classData.students) {
         const student = enrollment.student;
-        
+
         const attendances = await this.prisma.attendance.findMany({
           where: {
             studentId: student.id,
@@ -473,9 +492,8 @@ export class AttendanceService {
         const approvedCount = attendances.filter(
           (a) => a.status === AttendanceStatus.APPROVED,
         ).length;
-        const attendanceRate = totalSessions > 0 
-          ? (approvedCount / totalSessions) * 100 
-          : 0;
+        const attendanceRate =
+          totalSessions > 0 ? (approvedCount / totalSessions) * 100 : 0;
 
         classReport.push({
           studentId: student.id,
@@ -503,4 +521,3 @@ export class AttendanceService {
     return allReports;
   }
 }
-

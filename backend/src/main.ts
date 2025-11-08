@@ -21,12 +21,20 @@ async function bootstrap() {
       if (!origin) return callback(null, true);
 
       // Allow localhost
-      if (origin.startsWith('http://localhost:') || origin.startsWith('https://localhost:')) {
+      if (
+        origin.startsWith('http://localhost:') ||
+        origin.startsWith('https://localhost:')
+      ) {
         return callback(null, true);
       }
 
       // Allow all serveo.net subdomains
       if (origin.includes('.serveo.net')) {
+        return callback(null, true);
+      }
+
+      // Allow all LocalXpose (loclx.io) subdomains
+      if (origin.includes('.loclx.io')) {
         return callback(null, true);
       }
 
@@ -56,4 +64,3 @@ async function bootstrap() {
   console.log(`🚀 Backend running on http://localhost:${port}`);
 }
 bootstrap();
-

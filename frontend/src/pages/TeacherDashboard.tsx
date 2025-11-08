@@ -11,6 +11,7 @@ interface Class {
   name: string;
   sessions: Array<{
     id: string;
+    publicCode?: string | null;
     title: string;
     startTime: string;
     endTime: string;
@@ -51,8 +52,29 @@ function TeacherDashboard() {
     navigate(`/teacher/class/${classId}/create-session`);
   };
 
-  const handleViewSession = (sessionId: string) => {
-    navigate(`/teacher/session/${sessionId}`);
+  const handleViewSession = (sessionId: string, publicCode?: string | null) => {
+    const slug = publicCode || sessionId;
+    navigate(`/teacher/session/${slug}`);
+  };
+
+  const handleDeleteSession = async (sessionId: string, publicCode?: string | null) => {
+    const confirmDelete = window.confirm(
+      'Bạn có chắc chắn muốn xoá buổi học này? Hành động này không thể hoàn tác.',
+    );
+    if (!confirmDelete) return;
+
+    try {
+      if (publicCode && publicCode.length <= 6) {
+        await api.delete(`/sessions/code/${publicCode}`);
+      } else {
+        await api.delete(`/sessions/${sessionId}`);
+      }
+      await fetchClasses();
+    } catch (err: any) {
+      console.error('Failed to delete session:', err);
+      const message = err.response?.data?.message || 'Không thể xoá buổi học';
+      alert(message);
+    }
   };
 
   const handleToggleClass = (classId: string) => {
@@ -139,6 +161,7 @@ function TeacherDashboard() {
                         <thead>
                           <tr>
                             <th>Tiêu đề</th>
+                            <th>Mã buổi</th>
                             <th>Thời gian bắt đầu</th>
                             <th>Thời gian kết thúc</th>
                             <th>Thao tác</th>
@@ -149,18 +172,39 @@ function TeacherDashboard() {
                             <tr key={session.id}>
                               <td>{session.title}</td>
                               <td>
+                                {session.publicCode ? (
+                                  <span className="session-code-badge">{session.publicCode}</span>
+                                ) : (
+                                  <span className="session-code-missing">Chưa có</span>
+                                )}
+                              </td>
+                              <td>
                                 {new Date(session.startTime).toLocaleString('vi-VN')}
                               </td>
                               <td>
                                 {new Date(session.endTime).toLocaleString('vi-VN')}
                               </td>
                               <td>
+                                <div className="session-action-buttons">
                                 <button
-                                  onClick={() => handleViewSession(session.id)}
+                                    onClick={() => handleViewSession(session.id, session.publicCode)}
                                   className="view-session-button"
                                 >
                                   Xem chi tiết
                                 </button>
+                                  <button
+                                    onClick={() => navigate(`/teacher/session/${session.publicCode || session.id}/edit`)}
+                                    className="view-session-button"
+                                  >
+                                    Sửa
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteSession(session.id, session.publicCode)}
+                                    className="delete-session-button"
+                                  >
+                                    Xoá
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}

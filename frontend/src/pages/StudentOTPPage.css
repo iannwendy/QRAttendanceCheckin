@@ -66,6 +66,26 @@
   margin: 0 auto;
 }
 
+.session-meta-hint {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #1e3a8a;
+  font-weight: 600;
+  background: #e0f2fe;
+  border: 1px solid #bfdbfe;
+  padding: 6px 10px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.session-meta-warning {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #b91c1c;
+}
+
 .camera-section {
   margin: 30px 0;
 }

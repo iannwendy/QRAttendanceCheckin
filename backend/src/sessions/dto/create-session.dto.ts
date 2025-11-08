@@ -4,6 +4,8 @@ import {
   IsDateString,
   IsNumber,
   Min,
+  MaxLength,
+  Matches,
 } from 'class-validator';
 
 export class CreateSessionDto {
@@ -30,5 +32,11 @@ export class CreateSessionDto {
   @IsNumber()
   @Min(10)
   geofenceRadius: number;
-}
 
+  // Required human-friendly code, up to 6 alphanumeric characters (letters/numbers)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(6)
+  @Matches(/^[A-Za-z0-9]+$/)
+  publicCode: string;
+}

@@ -29,10 +29,7 @@ export class AttendanceController {
   @Post('checkin-qr')
   @UseGuards(RolesGuard)
   @Roles(Role.STUDENT)
-  async checkInQR(
-    @CurrentUser() user: any,
-    @Body() checkInDto: CheckInQRDto,
-  ) {
+  async checkInQR(@CurrentUser() user: any, @Body() checkInDto: CheckInQRDto) {
     return this.attendanceService.checkInQR(user.id, checkInDto);
   }
 
@@ -86,4 +83,3 @@ export class AttendanceController {
     return this.attendanceService.rejectAttendance(id);
   }
 }
-

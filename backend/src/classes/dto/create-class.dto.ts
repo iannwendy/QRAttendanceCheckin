@@ -9,4 +9,3 @@ export class CreateClassDto {
   @IsNotEmpty()
   name: string;
 }
-

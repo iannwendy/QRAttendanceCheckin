@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Post,
-  Body,
-  Get,
-  Param,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, UseGuards } from '@nestjs/common';
 import { ClassesService } from './classes.service';
 import { CreateClassDto } from './dto/create-class.dto';
 import { EnrollStudentsDto } from './dto/enroll-students.dto';
@@ -48,4 +41,3 @@ export class ClassesController {
     return this.classesService.enrollStudents(id, enrollDto);
   }
 }
-

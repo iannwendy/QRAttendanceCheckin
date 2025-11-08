@@ -4,11 +4,14 @@ import {
   Body,
   Get,
   Param,
+  Delete,
+  Patch,
   UseGuards,
 } from '@nestjs/common';
 import { SessionsService } from './sessions.service';
 import { ConfigService } from '@nestjs/config';
 import { CreateSessionDto } from './dto/create-session.dto';
+import { UpdateSessionDto } from './dto/update-session.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -27,6 +30,18 @@ export class SessionsController {
   @Roles(Role.LECTURER, Role.ADMIN)
   async create(@Body() createSessionDto: CreateSessionDto) {
     return this.sessionsService.create(createSessionDto);
+  }
+
+  @Patch(':id')
+  @UseGuards(RolesGuard)
+  @Roles(Role.LECTURER, Role.ADMIN)
+  async update(@Param('id') id: string, @Body() dto: UpdateSessionDto) {
+    return this.sessionsService.update(id, dto);
+  }
+
+  @Get('code/:code')
+  async findByCode(@Param('code') code: string) {
+    return this.sessionsService.findByPublicCode(code);
   }
 
   @Get(':id')
@@ -54,5 +69,18 @@ export class SessionsController {
     const otp = await this.sessionsService.getOTP(id);
     return { otp };
   }
-}
 
+  @Delete('code/:code')
+  @UseGuards(RolesGuard)
+  @Roles(Role.LECTURER, Role.ADMIN)
+  async removeByCode(@Param('code') code: string) {
+    return this.sessionsService.removeByPublicCode(code);
+  }
+
+  @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles(Role.LECTURER, Role.ADMIN)
+  async remove(@Param('id') id: string) {
+    return this.sessionsService.remove(id);
+  }
+}

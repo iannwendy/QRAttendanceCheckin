@@ -166,7 +166,7 @@
 
 .sessions-table th,
 .sessions-table td {
-  padding: 12px;
+  padding: 12px 14px;
   text-align: left;
   border-bottom: 1px solid #ddd;
 }
@@ -179,23 +179,36 @@
 
 .sessions-table th:nth-child(1),
 .sessions-table td:nth-child(1) {
-  width: 40%;
+  width: 36%;
 }
 
 .sessions-table th:nth-child(2),
-.sessions-table td:nth-child(2),
-.sessions-table th:nth-child(3),
-.sessions-table td:nth-child(3) {
-  width: 23%;
+.sessions-table td:nth-child(2) {
+  width: 18%;
 }
 
+.sessions-table th:nth-child(3),
+.sessions-table td:nth-child(3),
 .sessions-table th:nth-child(4),
 .sessions-table td:nth-child(4) {
+  width: 18%;
+}
+
+.sessions-table th:nth-child(5),
+.sessions-table td:nth-child(5) {
   width: 14%;
 }
 
+.session-action-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-start;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
 .view-session-button {
-  padding: 10px 12px;
+  padding: 8px 12px;
   background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
   color: white;
   border: none;
@@ -204,6 +217,39 @@
   font-size: 12px;
   font-weight: 700;
   box-shadow: 0 8px 20px rgba(37, 99, 235, 0.2);
+}
+
+.delete-session-button {
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 8px 20px rgba(239, 68, 68, 0.2);
+}
+
+.session-code-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  background: linear-gradient(135deg, #e0f2fe 0%, #dbeafe 100%);
+  border: 1px solid #bfdbfe;
+  letter-spacing: 0.3px;
+}
+
+.session-code-missing {
+  font-size: 13px;
+  color: #9ca3af;
+  font-style: italic;
 }
 
 .no-sessions {

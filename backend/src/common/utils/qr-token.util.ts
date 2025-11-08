@@ -8,6 +8,20 @@ export interface QRTokenPayload {
   exp: number;
   type: 'ATTEND_TOKEN';
   ver: number;
+  publicCode?: string | null;
+  className?: string | null;
+  classCode?: string | null;
+  sessionTitle?: string | null;
+}
+
+interface QRSessionContext {
+  id: string;
+  publicCode?: string | null;
+  title?: string | null;
+  class?: {
+    name: string | null;
+    code: string | null;
+  } | null;
 }
 
 export class QRTokenService {
@@ -22,9 +36,9 @@ export class QRTokenService {
       parseInt(this.configService.get('QR_ROTATE_SECONDS') || '180') || 180;
   }
 
-  generateQRToken(sessionId: string): QRTokenPayload {
+  generateQRToken(session: QRSessionContext): QRTokenPayload {
     const now = Math.floor(Date.now() / 1000);
-    const nonce = `${sessionId}-${now}-${Math.random().toString(36).substr(2, 9)}`;
+    const nonce = `${session.id}-${now}-${Math.random().toString(36).substr(2, 9)}`;
     const exp = now + this.qrRotateSeconds;
 
     // Lưu nonce với TTL
@@ -36,12 +50,16 @@ export class QRTokenService {
     this.cleanupExpiredNonces();
 
     const payload: QRTokenPayload = {
-      sessionId,
+      sessionId: session.id,
       nonce,
       iat: now,
       exp,
       type: 'ATTEND_TOKEN',
       ver: 1,
+      publicCode: session.publicCode ?? null,
+      className: session.class?.name ?? null,
+      classCode: session.class?.code ?? null,
+      sessionTitle: session.title ?? null,
     };
 
     return payload;
@@ -93,4 +111,3 @@ export class QRTokenService {
     }
   }
 }
-

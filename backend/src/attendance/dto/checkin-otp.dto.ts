@@ -26,4 +26,3 @@ export class CheckInOTPDto {
     timestamp: string;
   };
 }
-

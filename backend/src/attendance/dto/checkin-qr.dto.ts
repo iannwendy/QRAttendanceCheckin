@@ -13,4 +13,3 @@ export class CheckInQRDto {
   @IsNumber()
   accuracy: number;
 }
-
