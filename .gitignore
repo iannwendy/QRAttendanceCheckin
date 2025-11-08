@@ -41,3 +41,7 @@ coverage/
 
 # Misc
 *.tsbuildinfo
+
+# Sensitive/config files
+req.txt
+ngrok.yml
