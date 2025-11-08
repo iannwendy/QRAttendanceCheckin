@@ -30,7 +30,7 @@ services:
     environment:
       DATABASE_URL: postgresql://app:app@db:5432/attendance
       JWT_SECRET: dev_change_me_in_production
-      FRONTEND_URL: https://ssuwssk0gf.loclx.io
+      FRONTEND_URL: https://hwtwdalf5z.loclx.io
       QR_ROTATE_SECONDS: 180
       OTP_STEP_SECONDS: 60
       GEOFENCE_RADIUS_M_DEFAULT: 100
@@ -51,7 +51,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      VITE_API_BASE: https://kjupymev0f.loclx.io
+      VITE_API_BASE: https://43bpv1bjg9.loclx.io
       VITE_QR_ROTATE_SECONDS: 180
       VITE_OTP_STEP_SECONDS: 60
     volumes:

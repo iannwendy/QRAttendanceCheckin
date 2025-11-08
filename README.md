@@ -2,6 +2,8 @@
 
 Hệ thống điểm danh bằng QR code với GPS, OTP fallback và ảnh có watermark.
 
+![Demo](docs/demo.png)
+
 ## Kiến trúc
 
 - **Backend**: NestJS, Prisma ORM, PostgreSQL
