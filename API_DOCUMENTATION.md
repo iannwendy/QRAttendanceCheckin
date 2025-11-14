@@ -1,30 +1,30 @@
-# Tài liệu API - Hệ thống QR Attendance
+# API Documentation - QR Attendance System
 
-## Tổng quan
-Hệ thống quản lý điểm danh sử dụng QR Code và OTP với xác thực GPS. Backend chạy trên NestJS với Prisma ORM.
+## Overview
+QR Code and OTP-based attendance management system with GPS authentication. Backend runs on NestJS with Prisma ORM.
 
-**Base URL**: `http://localhost:8080` (hoặc theo cấu hình PORT)
+**Base URL**: `http://localhost:8080` (or according to PORT configuration)
 
 ---
 
 ## 1. Authentication Module (`/auth`)
 
-### 1.1. Đăng nhập
+### 1.1. Login
 - **URL**: `POST /auth/login`
-- **Public**: Có (không cần JWT)
-- **Mô tả**: Đăng nhập vào hệ thống bằng username/email và password
+- **Public**: Yes (no JWT required)
+- **Description**: Login to the system using username/email and password
 - **Input (Body)**:
   ```json
   {
-    "username": "string (optional)",  // "admin" | "lecturer" | MSSV (ví dụ: "523H0001")
-    "email": "string (optional)",      // Tương thích với phiên bản cũ
-    "password": "string"                // Tối thiểu 6 ký tự (dev: "pass123")
+    "username": "string",
+    "email": "string",
+    "password": "string"
   }
   ```
 - **Output**:
   ```json
   {
-    "accessToken": "string (JWT token)",
+    "accessToken": "string",
     "user": {
       "id": "string",
       "email": "string",
@@ -34,16 +34,16 @@ Hệ thống quản lý điểm danh sử dụng QR Code và OTP với xác th�
     }
   }
   ```
-- **Lỗi có thể xảy ra**:
-  - `401 Unauthorized`: Sai mật khẩu hoặc tài khoản không tồn tại
+- **Possible Errors**:
+  - `401 Unauthorized`: Incorrect password or account does not exist
 
 ---
 
-### 1.2. Lấy thông tin người dùng hiện tại
+### 1.2. Get Current User
 - **URL**: `GET /auth/me`
 - **Authentication**: JWT Required
-- **Mô tả**: Lấy thông tin của người dùng đang đăng nhập
-- **Input**: Không có (sử dụng JWT từ header `Authorization: Bearer <token>`)
+- **Description**: Get information of the currently logged-in user
+- **Input**: None (uses JWT from header `Authorization: Bearer <token>`)
 - **Output**:
   ```json
   {
@@ -59,18 +59,18 @@ Hệ thống quản lý điểm danh sử dụng QR Code và OTP với xác th�
 
 ## 2. Attendance Module (`/attendance`)
 
-### 2.1. Check-in bằng QR Code
+### 2.1. Check-in by QR Code
 - **URL**: `POST /attendance/checkin-qr`
 - **Authentication**: JWT Required
 - **Role**: STUDENT
-- **Mô tả**: Sinh viên check-in bằng cách quét QR code, yêu cầu GPS trong phạm vi cho phép
+- **Description**: Student checks in by scanning QR code, requires GPS within allowed range
 - **Input (Body)**:
   ```json
   {
-    "qrToken": "string",      // JWT token hoặc JSON string từ QR code
-    "lat": "number",          // Vĩ độ GPS
-    "lng": "number",          // Kinh độ GPS
-    "accuracy": "number"      // Độ chính xác GPS (mét)
+    "qrToken": "string",
+    "lat": "number",
+    "lng": "number",
+    "accuracy": "number"
   }
   ```
 - **Output**:
@@ -89,21 +89,21 @@ Hệ thống quản lý điểm danh sử dụng QR Code và OTP với xác th�
     "updatedAt": "ISO 8601 datetime"
   }
   ```
-- **Lỗi có thể xảy ra**:
-  - `400 Bad Request`: QR token không hợp lệ hoặc đã hết hạn, buổi học không tồn tại
-  - `401 Unauthorized`: Chưa đăng ký lớp này
+- **Possible Errors**:
+  - `400 Bad Request`: Invalid or expired QR token, session does not exist
+  - `401 Unauthorized`: Not enrolled in this class
 
 ---
 
-### 2.2. Check-in bằng OTP và ảnh
+### 2.2. Check-in by OTP and Photo
 - **URL**: `POST /attendance/checkin-otp`
 - **Authentication**: JWT Required
 - **Role**: STUDENT
-- **Mô tả**: Sinh viên check-in bằng OTP và upload ảnh làm bằng chứng (cần giáo viên duyệt)
+- **Description**: Student checks in using OTP and uploads photo as evidence (requires teacher approval)
 - **Input (Form Data)**:
-  - `file`: File ảnh (multipart/form-data, bắt buộc)
-  - `sessionId`: string (ID buổi học hoặc publicCode)
-  - `otp`: string (Mã OTP 6 số)
+  - `file`: Image file (multipart/form-data, required)
+  - `sessionId`: string (Session ID or publicCode)
+  - `otp`: string (6-digit OTP code)
   - `meta`: JSON string
     ```json
     {
@@ -127,19 +127,19 @@ Hệ thống quản lý điểm danh sử dụng QR Code và OTP với xác th�
     "updatedAt": "ISO 8601 datetime"
   }
   ```
-- **Lỗi có thể xảy ra**:
-  - `400 Bad Request`: File ảnh là bắt buộc, OTP không đúng hoặc đã hết hạn, buổi học không tồn tại
-  - `401 Unauthorized`: Chưa đăng ký lớp này
+- **Possible Errors**:
+  - `400 Bad Request`: Image file is required, invalid or expired OTP, session does not exist
+  - `401 Unauthorized`: Not enrolled in this class
 
 ---
 
-### 2.3. Lấy danh sách điểm danh của buổi học
+### 2.3. Get Session Attendances
 - **URL**: `GET /attendance/session/:id`
 - **Authentication**: JWT Required
 - **Role**: LECTURER, ADMIN
-- **Mô tả**: Lấy tất cả bản ghi điểm danh của một buổi học
+- **Description**: Get all attendance records for a session
 - **Input (Path Parameter)**:
-  - `id`: string (ID của buổi học)
+  - `id`: string (Session ID)
 - **Output**: Array of attendance records
   ```json
   [
@@ -170,18 +170,18 @@ Hệ thống quản lý điểm danh sử dụng QR Code và OTP với xác th�
     }
   ]
   ```
-- **Lỗi có thể xảy ra**:
-  - `400 Bad Request`: Buổi học không tồn tại
+- **Possible Errors**:
+  - `400 Bad Request`: Session does not exist
 
 ---
 
-### 2.4. Duyệt điểm danh
+### 2.4. Approve Attendance
 - **URL**: `PATCH /attendance/:id/approve`
 - **Authentication**: JWT Required
 - **Role**: LECTURER, ADMIN
-- **Mô tả**: Giáo viên/Admin duyệt điểm danh của sinh viên
+- **Description**: Teacher/Admin approves student attendance
 - **Input (Path Parameter)**:
-  - `id`: string (ID của bản ghi điểm danh)
+  - `id`: string (Attendance record ID)
 - **Output**:
   ```json
   {
@@ -214,24 +214,24 @@ Hệ thống quản lý điểm danh sử dụng QR Code và OTP với xác th�
 
 ---
 
-### 2.5. Từ chối điểm danh
+### 2.5. Reject Attendance
 - **URL**: `PATCH /attendance/:id/reject`
 - **Authentication**: JWT Required
 - **Role**: LECTURER, ADMIN
-- **Mô tả**: Giáo viên/Admin từ chối điểm danh của sinh viên
+- **Description**: Teacher/Admin rejects student attendance
 - **Input (Path Parameter)**:
-  - `id`: string (ID của bản ghi điểm danh)
-- **Output**: Tương tự như approve, nhưng `status` là `"REJECTED"`
+  - `id`: string (Attendance record ID)
+- **Output**: Similar to approve, but `status` is `"REJECTED"`
 
 ---
 
-### 2.6. Báo cáo điểm danh theo lớp
+### 2.6. Get Class Attendance Report
 - **URL**: `GET /attendance/report/class/:classId`
 - **Authentication**: JWT Required
 - **Role**: LECTURER, ADMIN
-- **Mô tả**: Lấy báo cáo điểm danh chi tiết của một lớp học
+- **Description**: Get detailed attendance report for a class
 - **Input (Path Parameter)**:
-  - `classId`: string (ID của lớp học)
+  - `classId`: string (Class ID)
 - **Output**:
   ```json
   {
@@ -250,7 +250,7 @@ Hệ thống quản lý điểm danh sử dụng QR Code và OTP với xác th�
         "email": "string",
         "totalSessions": "number",
         "attendedSessions": "number",
-        "attendanceRate": "number",  // Phần trăm (0-100)
+        "attendanceRate": "number",
         "sessionDetails": [
           {
             "sessionId": "string",
@@ -265,17 +265,17 @@ Hệ thống quản lý điểm danh sử dụng QR Code và OTP với xác th�
     ]
   }
   ```
-- **Lỗi có thể xảy ra**:
-  - `400 Bad Request`: Lớp học không tồn tại
+- **Possible Errors**:
+  - `400 Bad Request`: Class does not exist
 
 ---
 
-### 2.7. Báo cáo điểm danh tất cả lớp
+### 2.7. Get All Classes Attendance Report
 - **URL**: `GET /attendance/report/all`
 - **Authentication**: JWT Required
 - **Role**: ADMIN
-- **Mô tả**: Lấy báo cáo điểm danh của tất cả các lớp học
-- **Input**: Không có
+- **Description**: Get attendance report for all classes
+- **Input**: None
 - **Output**: Array of class reports
   ```json
   [
@@ -306,11 +306,11 @@ Hệ thống quản lý điểm danh sử dụng QR Code và OTP với xác th�
 
 ## 3. Sessions Module (`/sessions`)
 
-### 3.1. Tạo buổi học mới
+### 3.1. Create Session
 - **URL**: `POST /sessions`
 - **Authentication**: JWT Required
 - **Role**: LECTURER, ADMIN
-- **Mô tả**: Tạo một buổi học mới với QR code và OTP
+- **Description**: Create a new session with QR code and OTP
 - **Input (Body)**:
   ```json
   {
@@ -320,8 +320,8 @@ Hệ thống quản lý điểm danh sử dụng QR Code và OTP với xác th�
     "endTime": "ISO 8601 datetime string",
     "latitude": "number",
     "longitude": "number",
-    "geofenceRadius": "number",  // Bán kính GPS (mét), tối thiểu 10
-    "publicCode": "string"        // Mã công khai (tối đa 6 ký tự, chữ và số)
+    "geofenceRadius": "number",
+    "publicCode": "string"
   }
   ```
 - **Output**: Session object
@@ -340,47 +340,47 @@ Hệ thống quản lý điểm danh sử dụng QR Code và OTP với xác th�
     "createdAt": "ISO 8601 datetime"
   }
   ```
-- **Lưu ý**: Khi tạo buổi học, hệ thống tự động:
-  - Import 100 sinh viên (523H0001 - 523H0100) vào lớp nếu chưa có
-  - Tạo bản ghi điểm danh NOT_ATTENDED cho tất cả sinh viên
-- **Lỗi có thể xảy ra**:
-  - `400 Bad Request`: Mã buổi là bắt buộc, mã buổi đã tồn tại
+- **Note**: When creating a session, the system automatically:
+  - Imports 100 students (523H0001 - 523H0100) into the class if not already present
+  - Creates NOT_ATTENDED attendance records for all students
+- **Possible Errors**:
+  - `400 Bad Request`: Public code is required, public code already exists
 
 ---
 
-### 3.2. Cập nhật buổi học
+### 3.2. Update Session
 - **URL**: `PATCH /sessions/:id`
 - **Authentication**: JWT Required
 - **Role**: LECTURER, ADMIN
-- **Mô tả**: Cập nhật thông tin buổi học
+- **Description**: Update session information
 - **Input (Path Parameter)**:
-  - `id`: string (ID của buổi học)
-- **Input (Body)** - Tất cả các trường đều optional:
+  - `id`: string (Session ID)
+- **Input (Body)** - All fields are optional:
   ```json
   {
-    "classId": "string (optional)",
-    "title": "string (optional)",
-    "startTime": "ISO 8601 datetime string (optional)",
-    "endTime": "ISO 8601 datetime string (optional)",
-    "latitude": "number (optional)",
-    "longitude": "number (optional)",
-    "geofenceRadius": "number (optional)",
-    "publicCode": "string (optional)"  // Tối đa 6 ký tự, chữ và số
+    "classId": "string",
+    "title": "string",
+    "startTime": "ISO 8601 datetime string",
+    "endTime": "ISO 8601 datetime string",
+    "latitude": "number",
+    "longitude": "number",
+    "geofenceRadius": "number",
+    "publicCode": "string"
   }
   ```
-- **Output**: Session object đã được cập nhật
-- **Lỗi có thể xảy ra**:
-  - `404 Not Found`: Buổi học không tồn tại
-  - `400 Bad Request`: Mã buổi không được để trống, mã buổi đã tồn tại
+- **Output**: Updated session object
+- **Possible Errors**:
+  - `404 Not Found`: Session does not exist
+  - `400 Bad Request`: Public code cannot be empty, public code already exists
 
 ---
 
-### 3.3. Lấy thông tin buổi học theo ID
+### 3.3. Get Session by ID
 - **URL**: `GET /sessions/:id`
 - **Authentication**: JWT Required
-- **Mô tả**: Lấy thông tin chi tiết của một buổi học
+- **Description**: Get detailed information of a session
 - **Input (Path Parameter)**:
-  - `id`: string (ID của buổi học)
+  - `id`: string (Session ID)
 - **Output**:
   ```json
   {
@@ -430,112 +430,112 @@ Hệ thống quản lý điểm danh sử dụng QR Code và OTP với xác th�
     ]
   }
   ```
-- **Lỗi có thể xảy ra**:
-  - `404 Not Found`: Buổi học không tồn tại
+- **Possible Errors**:
+  - `404 Not Found`: Session does not exist
 
 ---
 
-### 3.4. Lấy thông tin buổi học theo mã công khai
+### 3.4. Get Session by Public Code
 - **URL**: `GET /sessions/code/:code`
 - **Authentication**: JWT Required
-- **Mô tả**: Lấy thông tin buổi học bằng mã công khai (publicCode)
+- **Description**: Get session information by public code (publicCode)
 - **Input (Path Parameter)**:
-  - `code`: string (Mã công khai của buổi học)
-- **Output**: Tương tự như `GET /sessions/:id`
-- **Lỗi có thể xảy ra**:
-  - `404 Not Found`: Buổi học không tồn tại
+  - `code`: string (Session public code)
+- **Output**: Similar to `GET /sessions/:id`
+- **Possible Errors**:
+  - `404 Not Found`: Session does not exist
 
 ---
 
-### 3.5. Lấy QR Token cho buổi học
+### 3.5. Get QR Token
 - **URL**: `GET /sessions/:id/qr`
 - **Authentication**: JWT Required
 - **Role**: LECTURER, ADMIN
-- **Mô tả**: Lấy QR token (JWT) để tạo QR code cho buổi học
+- **Description**: Get QR token (JWT) to generate QR code for the session
 - **Input (Path Parameter)**:
-  - `id`: string (ID của buổi học)
+  - `id`: string (Session ID)
 - **Output**:
   ```json
   {
-    "token": "string (JWT token)",
+    "token": "string",
     "payload": {
       "sessionId": "string",
       "classCode": "string",
       "className": "string",
       "nonce": "string",
-      "exp": "number (Unix timestamp)"
+      "exp": "number"
     },
-    "deepLink": "string | null"  // URL để mở trực tiếp trang check-in
+    "deepLink": "string | null"
   }
   ```
-- **Lỗi có thể xảy ra**:
-  - `404 Not Found`: Buổi học không tồn tại
+- **Possible Errors**:
+  - `404 Not Found`: Session does not exist
 
 ---
 
-### 3.6. Lấy mã OTP hiện tại
+### 3.6. Get OTP
 - **URL**: `GET /sessions/:id/otp`
 - **Authentication**: JWT Required
 - **Role**: LECTURER, ADMIN
-- **Mô tả**: Lấy mã OTP hiện tại (TOTP) cho buổi học
+- **Description**: Get current OTP (TOTP) for the session
 - **Input (Path Parameter)**:
-  - `id`: string (ID của buổi học)
+  - `id`: string (Session ID)
 - **Output**:
   ```json
   {
-    "otp": "string (6 chữ số)"
+    "otp": "string"
   }
   ```
-- **Lỗi có thể xảy ra**:
-  - `404 Not Found`: Buổi học không tồn tại
-- **Lưu ý**: OTP thay đổi theo chu kỳ (mặc định 30-60 giây tùy cấu hình)
+- **Possible Errors**:
+  - `404 Not Found`: Session does not exist
+- **Note**: OTP changes periodically (default 30-60 seconds depending on configuration)
 
 ---
 
-### 3.7. Xóa buổi học theo ID
+### 3.7. Delete Session by ID
 - **URL**: `DELETE /sessions/:id`
 - **Authentication**: JWT Required
 - **Role**: LECTURER, ADMIN
-- **Mô tả**: Xóa một buổi học
+- **Description**: Delete a session
 - **Input (Path Parameter)**:
-  - `id`: string (ID của buổi học)
+  - `id`: string (Session ID)
 - **Output**:
   ```json
   {
     "success": true
   }
   ```
-- **Lỗi có thể xảy ra**:
-  - `404 Not Found`: Buổi học không tồn tại
+- **Possible Errors**:
+  - `404 Not Found`: Session does not exist
 
 ---
 
-### 3.8. Xóa buổi học theo mã công khai
+### 3.8. Delete Session by Code
 - **URL**: `DELETE /sessions/code/:code`
 - **Authentication**: JWT Required
 - **Role**: LECTURER, ADMIN
-- **Mô tả**: Xóa một buổi học bằng mã công khai
+- **Description**: Delete a session by public code
 - **Input (Path Parameter)**:
-  - `code`: string (Mã công khai của buổi học)
+  - `code`: string (Session public code)
 - **Output**:
   ```json
   {
     "success": true
   }
   ```
-- **Lỗi có thể xảy ra**:
-  - `404 Not Found`: Buổi học không tồn tại
+- **Possible Errors**:
+  - `404 Not Found`: Session does not exist
 
 ---
 
 ## 4. Classes Module (`/classes`)
 
-### 4.1. Lấy danh sách tất cả lớp học
+### 4.1. Get All Classes
 - **URL**: `GET /classes`
 - **Authentication**: JWT Required
 - **Role**: LECTURER, ADMIN
-- **Mô tả**: Lấy danh sách tất cả các lớp học
-- **Input**: Không có
+- **Description**: Get list of all classes
+- **Input**: None
 - **Output**: Array of classes
   ```json
   [
@@ -562,16 +562,16 @@ Hệ thống quản lý điểm danh sử dụng QR Code và OTP với xác th�
 
 ---
 
-### 4.2. Tạo lớp học mới
+### 4.2. Create Class
 - **URL**: `POST /classes`
 - **Authentication**: JWT Required
 - **Role**: LECTURER, ADMIN
-- **Mô tả**: Tạo một lớp học mới
+- **Description**: Create a new class
 - **Input (Body)**:
   ```json
   {
-    "code": "string",  // Mã lớp (unique)
-    "name": "string"   // Tên lớp
+    "code": "string",
+    "name": "string"
   }
   ```
 - **Output**:
@@ -586,12 +586,12 @@ Hệ thống quản lý điểm danh sử dụng QR Code và OTP với xác th�
 
 ---
 
-### 4.3. Lấy thông tin lớp học theo ID
+### 4.3. Get Class by ID
 - **URL**: `GET /classes/:id`
 - **Authentication**: JWT Required
-- **Mô tả**: Lấy thông tin chi tiết của một lớp học
+- **Description**: Get detailed information of a class
 - **Input (Path Parameter)**:
-  - `id`: string (ID của lớp học)
+  - `id`: string (Class ID)
 - **Output**:
   ```json
   {
@@ -629,23 +629,23 @@ Hệ thống quản lý điểm danh sử dụng QR Code và OTP với xác th�
     ]
   }
   ```
-- **Lỗi có thể xảy ra**:
-  - `404 Not Found`: Lớp không tồn tại
+- **Possible Errors**:
+  - `404 Not Found`: Class does not exist
 
 ---
 
-### 4.4. Đăng ký sinh viên vào lớp
+### 4.4. Enroll Students
 - **URL**: `POST /classes/:id/enroll`
 - **Authentication**: JWT Required
 - **Role**: LECTURER, ADMIN
-- **Mô tả**: Đăng ký sinh viên vào lớp học bằng mã sinh viên hoặc user ID
+- **Description**: Enroll students into a class using student codes or user IDs
 - **Input (Path Parameter)**:
-  - `id`: string (ID của lớp học)
+  - `id`: string (Class ID)
 - **Input (Body)**:
   ```json
   {
-    "studentCodes": ["string"] (optional),  // Array of student codes (MSSV)
-    "userIds": ["string"] (optional)        // Array of user IDs
+    "studentCodes": ["string"],
+    "userIds": ["string"]
   }
   ```
 - **Output**: Array of enrollment records
@@ -658,38 +658,38 @@ Hệ thống quản lý điểm danh sử dụng QR Code và OTP với xác th�
     }
   ]
   ```
-- **Lỗi có thể xảy ra**:
-  - `404 Not Found`: Lớp không tồn tại
-  - `400 Bad Request`: Sinh viên với MSSV không tồn tại
-- **Lưu ý**: Nếu sinh viên đã đăng ký, sẽ bỏ qua (không tạo duplicate)
+- **Possible Errors**:
+  - `404 Not Found`: Class does not exist
+  - `400 Bad Request`: Student with student code does not exist
+- **Note**: If student is already enrolled, it will be skipped (no duplicate created)
 
 ---
 
 ## 5. Static Files
 
-### 5.1. Truy cập file upload
+### 5.1. Get Upload File
 - **URL**: `GET /uploads/:filename`
-- **Public**: Có (không cần JWT)
-- **Mô tả**: Truy cập các file ảnh đã upload (bằng chứng điểm danh)
+- **Public**: Yes (no JWT required)
+- **Description**: Access uploaded image files (attendance evidence)
 - **Input (Path Parameter)**:
-  - `filename`: string (Tên file, ví dụ: `7d5aac68a5aa1e1feafcffa7ecda561a.jpg`)
-- **Output**: File ảnh (image/jpeg, image/png, etc.)
+  - `filename`: string (File name, e.g., `7d5aac68a5aa1e1feafcffa7ecda561a.jpg`)
+- **Output**: Image file (image/jpeg, image/png, etc.)
 
 ---
 
 ## Authentication & Authorization
 
 ### JWT Token
-- Tất cả API (trừ `/auth/login` và `/uploads/*`) yêu cầu JWT token trong header:
+- All APIs (except `/auth/login` and `/uploads/*`) require JWT token in header:
   ```
   Authorization: Bearer <accessToken>
   ```
-- Token có thời hạn 7 ngày (theo cấu hình)
+- Token expires in 7 days (according to configuration)
 
 ### Roles
-- **STUDENT**: Sinh viên, có thể check-in
-- **LECTURER**: Giáo viên, có thể quản lý lớp và buổi học, duyệt điểm danh
-- **ADMIN**: Quản trị viên, có quyền tất cả
+- **STUDENT**: Student, can check in
+- **LECTURER**: Lecturer, can manage classes and sessions, approve attendance
+- **ADMIN**: Administrator, has all permissions
 
 ### Public Endpoints
 - `POST /auth/login`
@@ -705,22 +705,22 @@ Hệ thống quản lý điểm danh sử dụng QR Code và OTP với xác th�
 - `ADMIN`
 
 ### AttendanceMethod
-- `QR_GPS`: Check-in bằng QR code và GPS
-- `OTP_PHOTO`: Check-in bằng OTP và ảnh
-- `AUTO_IMPORT`: Tự động import khi tạo buổi học
+- `QR_GPS`: Check-in using QR code and GPS
+- `OTP_PHOTO`: Check-in using OTP and photo
+- `AUTO_IMPORT`: Automatically imported when creating session
 
 ### AttendanceStatus
-- `NOT_ATTENDED`: Chưa điểm danh
-- `PENDING`: Đang chờ duyệt (OTP_PHOTO)
-- `APPROVED`: Đã duyệt
-- `REJECTED`: Đã từ chối
-- `TOO_FAR`: Quá xa vị trí GPS cho phép
+- `NOT_ATTENDED`: Not attended
+- `PENDING`: Pending approval (OTP_PHOTO)
+- `APPROVED`: Approved
+- `REJECTED`: Rejected
+- `TOO_FAR`: Too far from allowed GPS location
 
 ---
 
 ## Error Responses
 
-Tất cả lỗi trả về format:
+All errors return the following format:
 ```json
 {
   "statusCode": "number",
@@ -729,11 +729,11 @@ Tất cả lỗi trả về format:
 }
 ```
 
-Ví dụ:
+Example:
 ```json
 {
   "statusCode": 400,
-  "message": "QR token không hợp lệ hoặc đã hết hạn",
+  "message": "Invalid or expired QR token",
   "error": "Bad Request"
 }
 ```
@@ -742,13 +742,12 @@ Ví dụ:
 
 ## Notes
 
-1. **GPS Geofencing**: Khi check-in bằng QR, hệ thống kiểm tra khoảng cách GPS. Nếu quá xa (> geofenceRadius), status sẽ là `TOO_FAR`.
+1. **GPS Geofencing**: When checking in with QR, the system checks GPS distance. If too far (> geofenceRadius), status will be `TOO_FAR`.
 
-2. **OTP**: OTP sử dụng TOTP (Time-based One-Time Password), thay đổi theo chu kỳ (mặc định 30-60 giây).
+2. **OTP**: OTP uses TOTP (Time-based One-Time Password), changes periodically (default 30-60 seconds).
 
-3. **Auto Import**: Khi tạo buổi học mới, hệ thống tự động import 100 sinh viên (523H0001 - 523H0100) và tạo bản ghi điểm danh `NOT_ATTENDED`.
+3. **Auto Import**: When creating a new session, the system automatically imports 100 students (523H0001 - 523H0100) and creates `NOT_ATTENDED` attendance records.
 
-4. **File Upload**: File ảnh được lưu trong thư mục `backend/uploads/` và truy cập qua `/uploads/:filename`.
+4. **File Upload**: Image files are stored in `backend/uploads/` directory and accessed via `/uploads/:filename`.
 
-5. **CORS**: Backend cho phép CORS từ localhost và các domain serveo.net, loclx.io.
-
+5. **CORS**: Backend allows CORS from localhost and serveo.net, loclx.io domains.

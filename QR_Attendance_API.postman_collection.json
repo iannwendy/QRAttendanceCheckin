@@ -1,0 +1,832 @@
+{
+	"info": {
+		"_postman_id": "qr-attendance-api",
+		"name": "QR Attendance API",
+		"description": "Collection API cho hệ thống QR Attendance - Quản lý điểm danh bằng QR Code và OTP",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"accessToken\", jsonData.accessToken);",
+									"    pm.collectionVariables.set(\"userId\", jsonData.user.id);",
+									"    pm.collectionVariables.set(\"userRole\", jsonData.user.role);",
+									"    console.log(\"Token saved:\", jsonData.accessToken);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"admin\",\n  \"password\": \"pass123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						},
+						"description": "Đăng nhập vào hệ thống. Có thể dùng:\n- username: \"admin\" | \"lecturer\" | MSSV (ví dụ: \"523H0001\")\n- password: \"pass123\" (dev mode)\n\nToken sẽ tự động được lưu vào collection variable sau khi login thành công."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Current User",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"me"
+							]
+						},
+						"description": "Lấy thông tin của người dùng đang đăng nhập"
+					},
+					"response": []
+				}
+			],
+			"description": "Các API xác thực và quản lý người dùng"
+		},
+		{
+			"name": "Classes",
+			"item": [
+				{
+					"name": "Get All Classes",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/classes",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"classes"
+							]
+						},
+						"description": "Lấy danh sách tất cả các lớp học (LECTURER, ADMIN)"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Class",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"code\": \"SOA2024\",\n  \"name\": \"Hệ thống phần mềm 2024\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/classes",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"classes"
+							]
+						},
+						"description": "Tạo lớp học mới (LECTURER, ADMIN)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Class by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/classes/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"classes",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "",
+									"description": "Class ID"
+								}
+							]
+						},
+						"description": "Lấy thông tin chi tiết của một lớp học"
+					},
+					"response": []
+				},
+				{
+					"name": "Enroll Students",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"studentCodes\": [\"523H0001\", \"523H0002\"],\n  \"userIds\": []\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/classes/:id/enroll",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"classes",
+								":id",
+								"enroll"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "",
+									"description": "Class ID"
+								}
+							]
+						},
+						"description": "Đăng ký sinh viên vào lớp học (LECTURER, ADMIN)"
+					},
+					"response": []
+				}
+			],
+			"description": "Quản lý lớp học"
+		},
+		{
+			"name": "Sessions",
+			"item": [
+				{
+					"name": "Create Session",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"classId\": \"\",\n  \"title\": \"Buổi học 1 - Giới thiệu\",\n  \"startTime\": \"2024-11-10T08:00:00Z\",\n  \"endTime\": \"2024-11-10T10:00:00Z\",\n  \"latitude\": 10.762622,\n  \"longitude\": 106.660172,\n  \"geofenceRadius\": 100,\n  \"publicCode\": \"BUOI01\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/sessions",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"sessions"
+							]
+						},
+						"description": "Tạo buổi học mới (LECTURER, ADMIN). Hệ thống tự động import 100 sinh viên (523H0001-523H0100) và tạo bản ghi điểm danh NOT_ATTENDED."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Session",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Buổi học 1 - Đã cập nhật\",\n  \"geofenceRadius\": 150\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/sessions/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"sessions",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "",
+									"description": "Session ID"
+								}
+							]
+						},
+						"description": "Cập nhật thông tin buổi học (LECTURER, ADMIN)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Session by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/sessions/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"sessions",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "",
+									"description": "Session ID"
+								}
+							]
+						},
+						"description": "Lấy thông tin chi tiết của một buổi học"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Session by Public Code",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/sessions/code/:code",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"sessions",
+								"code",
+								":code"
+							],
+							"variable": [
+								{
+									"key": "code",
+									"value": "BUOI01",
+									"description": "Public Code"
+								}
+							]
+						},
+						"description": "Lấy thông tin buổi học bằng mã công khai (publicCode)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get QR Token",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/sessions/:id/qr",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"sessions",
+								":id",
+								"qr"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "",
+									"description": "Session ID"
+								}
+							]
+						},
+						"description": "Lấy QR token (JWT) để tạo QR code cho buổi học (LECTURER, ADMIN)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get OTP",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/sessions/:id/otp",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"sessions",
+								":id",
+								"otp"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "",
+									"description": "Session ID"
+								}
+							]
+						},
+						"description": "Lấy mã OTP hiện tại (TOTP) cho buổi học (LECTURER, ADMIN)"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Session by ID",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/sessions/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"sessions",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "",
+									"description": "Session ID"
+								}
+							]
+						},
+						"description": "Xóa một buổi học (LECTURER, ADMIN)"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Session by Code",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/sessions/code/:code",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"sessions",
+								"code",
+								":code"
+							],
+							"variable": [
+								{
+									"key": "code",
+									"value": "BUOI01",
+									"description": "Public Code"
+								}
+							]
+						},
+						"description": "Xóa một buổi học bằng mã công khai (LECTURER, ADMIN)"
+					},
+					"response": []
+				}
+			],
+			"description": "Quản lý buổi học"
+		},
+		{
+			"name": "Attendance",
+			"item": [
+				{
+					"name": "Check-in by QR Code",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"qrToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n  \"lat\": 10.762622,\n  \"lng\": 106.660172,\n  \"accuracy\": 10\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/attendance/checkin-qr",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"checkin-qr"
+							]
+						},
+						"description": "Check-in bằng QR code và GPS (STUDENT). QR token lấy từ GET /sessions/:id/qr"
+					},
+					"response": []
+				},
+				{
+					"name": "Check-in by OTP and Photo",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": [],
+									"description": "File ảnh làm bằng chứng"
+								},
+								{
+									"key": "sessionId",
+									"value": "",
+									"type": "text",
+									"description": "Session ID hoặc publicCode"
+								},
+								{
+									"key": "otp",
+									"value": "123456",
+									"type": "text",
+									"description": "Mã OTP 6 số"
+								},
+								{
+									"key": "meta",
+									"value": "{\"studentCode\":\"523H0001\",\"timestamp\":\"2024-11-10T08:00:00Z\"}",
+									"type": "text",
+									"description": "JSON string metadata"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/attendance/checkin-otp",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"checkin-otp"
+							]
+						},
+						"description": "Check-in bằng OTP và upload ảnh (STUDENT). Cần giáo viên duyệt sau đó."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Session Attendances",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/session/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"session",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "",
+									"description": "Session ID"
+								}
+							]
+						},
+						"description": "Lấy danh sách điểm danh của một buổi học (LECTURER, ADMIN)"
+					},
+					"response": []
+				},
+				{
+					"name": "Approve Attendance",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/:id/approve",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								":id",
+								"approve"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "",
+									"description": "Attendance ID"
+								}
+							]
+						},
+						"description": "Duyệt điểm danh (LECTURER, ADMIN)"
+					},
+					"response": []
+				},
+				{
+					"name": "Reject Attendance",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/:id/reject",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								":id",
+								"reject"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "",
+									"description": "Attendance ID"
+								}
+							]
+						},
+						"description": "Từ chối điểm danh (LECTURER, ADMIN)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Class Attendance Report",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/report/class/:classId",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"report",
+								"class",
+								":classId"
+							],
+							"variable": [
+								{
+									"key": "classId",
+									"value": "",
+									"description": "Class ID"
+								}
+							]
+						},
+						"description": "Báo cáo điểm danh chi tiết của một lớp học (LECTURER, ADMIN)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Classes Attendance Report",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/report/all",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"report",
+								"all"
+							]
+						},
+						"description": "Báo cáo điểm danh của tất cả các lớp học (ADMIN only)"
+					},
+					"response": []
+				}
+			],
+			"description": "Quản lý điểm danh"
+		},
+		{
+			"name": "Static Files",
+			"item": [
+				{
+					"name": "Get Upload File",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/uploads/:filename",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"uploads",
+								":filename"
+							],
+							"variable": [
+								{
+									"key": "filename",
+									"value": "7d5aac68a5aa1e1feafcffa7ecda561a.jpg",
+									"description": "Tên file"
+								}
+							]
+						},
+						"description": "Truy cập file ảnh đã upload (public, không cần JWT)"
+					},
+					"response": []
+				}
+			],
+			"description": "Truy cập file tĩnh"
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "accessToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "userId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "userRole",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
+
