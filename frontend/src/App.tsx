@@ -5,6 +5,7 @@ import StudentScanPage from './pages/StudentScanPage';
 import StudentOTPPage from './pages/StudentOTPPage';
 import TeacherDashboard from './pages/TeacherDashboard';
 import TeacherSessionPage from './pages/TeacherSessionPage';
+import SessionDisplayPage from './pages/SessionDisplayPage';
 import CreateSessionPage from './pages/CreateSessionPage';
 import EditSessionPage from './pages/EditSessionPage';
 import CreateClassPage from './pages/CreateClassPage';
@@ -54,6 +55,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['LECTURER']}>
               <TeacherSessionPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/teacher/session/:id/display"
+          element={
+            <ProtectedRoute allowedRoles={['LECTURER']}>
+              <SessionDisplayPage />
             </ProtectedRoute>
           }
         />

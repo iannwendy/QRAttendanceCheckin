@@ -42,6 +42,7 @@ function TeacherSessionPage() {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
+  const [approvingIds, setApprovingIds] = useState<Set<string>>(new Set());
 
   const recentApproved = useMemo(() => {
     const successful = attendances.filter((a) => a.status === 'APPROVED' || a.status === 'TOO_FAR');
@@ -50,7 +51,7 @@ function TeacherSessionPage() {
       const aTime = new Date(a.updatedAt ?? a.createdAt).getTime();
       return bTime - aTime;
     });
-    return successful.slice(0, 10);
+    return successful.slice(0, 5);
   }, [attendances]);
 
   const [effectiveId, setEffectiveId] = useState<string | null>(null);
@@ -147,6 +148,14 @@ function TeacherSessionPage() {
     navigate('/teacher/dashboard');
   };
 
+  const handleEditSession = () => {
+    if (effectiveId) {
+      navigate(`/teacher/session/${effectiveId}/edit`);
+    } else if (id) {
+      navigate(`/teacher/session/${id}/edit`);
+    }
+  };
+
   const fetchAttendances = async (showSpinner: boolean = false) => {
     if (!effectiveId) return;
     if (showSpinner) setLoading(true);
@@ -177,11 +186,18 @@ function TeacherSessionPage() {
   };
 
   const approveAttendance = async (attendanceId: string) => {
+    setApprovingIds((prev) => new Set(prev).add(attendanceId));
     try {
       await api.patch(`/attendance/${attendanceId}/approve`);
       fetchAttendances();
     } catch (err) {
       console.error('Failed to approve attendance:', err);
+    } finally {
+      setApprovingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(attendanceId);
+        return next;
+      });
     }
   };
 
@@ -199,7 +215,12 @@ function TeacherSessionPage() {
       <div className="teacher-container">
         <div className="session-header">
           <div className="session-header-left">
+            <div className="session-title-row">
             <h1>{sessionInfo?.title || 'Quản lý Buổi Học'}</h1>
+              <button onClick={handleEditSession} className="edit-button">
+                Chỉnh sửa buổi học
+              </button>
+            </div>
             <div className="session-subtitle">
               {sessionInfo?.class && (
                 <span className="session-class-name">
@@ -221,7 +242,21 @@ function TeacherSessionPage() {
         {error && <div className="error-message">{error}</div>}
         <div className="cards-grid">
           <div className="card qr-card">
-            <h2>QR Code</h2>
+            <div className="qr-card-header">
+              <h2>QR Code</h2>
+              {qrToken && (
+                <button
+                  onClick={() => {
+                    const displayUrl = `/teacher/session/${effectiveId || id}/display`;
+                    window.open(displayUrl, '_blank');
+                  }}
+                  className="qr-toggle-button"
+                  title="Mở trong tab mới"
+                >
+                  🗖
+                </button>
+              )}
+            </div>
             {qrToken ? (
               <div className="qr-display">
                 <QRCodeSVG value={qrToken} size={300} />
@@ -251,7 +286,7 @@ function TeacherSessionPage() {
                 </>
               ) : (
                 <>
-                  <div className="otp-code">Loading...</div>
+                  <div className="otp-code otp-loading">Đang tải...</div>
                   <p className="otp-info">Đang tải OTP...</p>
                   {sessionInfo?.publicCode ? (
                     <div className="session-code-inline">
@@ -346,18 +381,44 @@ function TeacherSessionPage() {
                     const name = (a.student.fullName || '').toLowerCase();
                     return code.includes(q) || name.includes(q);
                   })
+                  .sort((a, b) => {
+                    // Hàm tính priority: số càng nhỏ = ưu tiên càng cao
+                    const getPriority = (att: Attendance) => {
+                      // Ưu tiên 1: OTP + Ảnh (cần duyệt)
+                      if (att.method === 'OTP_PHOTO') {
+                        return 1;
+                      }
+                      // Ưu tiên 2: QR nhưng ở quá xa
+                      if (att.method === 'QR_GPS' && att.status === 'TOO_FAR') {
+                        return 2;
+                      }
+                      // Ưu tiên 3: QR OK (đã điểm danh)
+                      if (att.method === 'QR_GPS' && att.status === 'APPROVED') {
+                        return 3;
+                      }
+                      // Các trường hợp khác
+                      return 4;
+                    };
+                    
+                    const priorityA = getPriority(a);
+                    const priorityB = getPriority(b);
+                    
+                    // Sắp xếp theo priority
+                    if (priorityA !== priorityB) {
+                      return priorityA - priorityB;
+                    }
+                    
+                    // Nếu cùng priority, sắp xếp theo thời gian (mới nhất trước)
+                    const timeA = new Date((a as any).updatedAt || a.createdAt).getTime();
+                    const timeB = new Date((b as any).updatedAt || b.createdAt).getTime();
+                    return timeB - timeA;
+                  })
                   .map((attendance) => (
                     <tr key={attendance.id}>
                       <td>{attendance.student.studentCode || 'N/A'}</td>
                       <td>{attendance.student.fullName}</td>
                       <td>
                         {(() => {
-                          // Nếu status là TOO_FAR, hiển thị "Ở xa" với màu đỏ
-                          if (attendance.status === 'TOO_FAR') {
-                            return (
-                              <span className="method-badge method-far">Ở xa</span>
-                            );
-                          }
                           // Nếu là QR_GPS, hiển thị "QR + GPS" với màu xanh lá
                           if (attendance.method === 'QR_GPS') {
                             return (
@@ -421,7 +482,20 @@ function TeacherSessionPage() {
                       <td>
                         {attendance.status === 'PENDING' ? (
                           <div className="action-buttons">
-                            <button className="action-button approve" onClick={() => approveAttendance(attendance.id)}>Duyệt</button>
+                            <button 
+                              className="action-button approve" 
+                              onClick={() => approveAttendance(attendance.id)}
+                              disabled={approvingIds.has(attendance.id)}
+                            >
+                              {approvingIds.has(attendance.id) ? (
+                                <>
+                                  <span className="button-spinner"></span>
+                                  Đang xử lý...
+                                </>
+                              ) : (
+                                'Duyệt'
+                              )}
+                            </button>
                             <button className="action-button reject" onClick={() => rejectAttendance(attendance.id)}>Từ chối</button>
                           </div>
                         ) : (
@@ -430,8 +504,19 @@ function TeacherSessionPage() {
                       </td>
                       <td>
                         {attendance.status !== 'APPROVED' ? (
-                          <button className="action-button approve" onClick={() => approveAttendance(attendance.id)}>
-                            Điểm danh thủ công
+                          <button 
+                            className="action-button approve" 
+                            onClick={() => approveAttendance(attendance.id)}
+                            disabled={approvingIds.has(attendance.id)}
+                          >
+                            {approvingIds.has(attendance.id) ? (
+                              <>
+                                <span className="button-spinner"></span>
+                                Đang xử lý...
+                              </>
+                            ) : (
+                              'Điểm danh thủ công'
+                            )}
                           </button>
                         ) : (
                           '-'

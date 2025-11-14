@@ -8,6 +8,8 @@ function StudentScanPage() {
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [tooFar, setTooFar] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
   const [location, setLocation] = useState<{
     lat: number;
     lng: number;
@@ -15,6 +17,7 @@ function StudentScanPage() {
   } | null>(null);
   const [locationError, setLocationError] = useState('');
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const { logout, user } = useAuthStore();
 
   useEffect(() => {
@@ -91,26 +94,63 @@ function StudentScanPage() {
         // not a URL -> keep original
       }
 
-      await api.post('/attendance/checkin-qr', {
+      const response = await api.post('/attendance/checkin-qr', {
         qrToken: tokenToUse,
         lat: location.lat,
         lng: location.lng,
         accuracy: location.accuracy,
       });
 
-      setSuccess(true);
-      setError('');
-      setTimeout(() => {
+      // Kiểm tra trạng thái từ response
+      if (response.data?.status === 'TOO_FAR') {
+        setTooFar(true);
         setSuccess(false);
-      }, 3000);
+        setError('');
+        startCountdown();
+      } else {
+        setSuccess(true);
+        setTooFar(false);
+        setError('');
+        startCountdown();
+      }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Điểm danh thất bại');
+      setSuccess(false);
+      setTooFar(false);
     }
+  };
+
+  const startCountdown = () => {
+    setCountdown(5);
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+    }
+    countdownRef.current = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev === null || prev <= 1) {
+          if (countdownRef.current) {
+            clearInterval(countdownRef.current);
+            countdownRef.current = null;
+          }
+          // Reset states before navigating
+          setSuccess(false);
+          setTooFar(false);
+          setCountdown(null);
+          // Use window.location to force a full page reload and reset
+          window.location.href = '/student/scan';
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
   };
 
   useEffect(() => {
     return () => {
       stopScan();
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current);
+      }
     };
   }, []);
 
@@ -154,7 +194,22 @@ function StudentScanPage() {
         {error && <div className="error-message">{error}</div>}
         {success && (
           <div className="success-message">
-            ✅ Điểm danh thành công!
+            <div>✅ Điểm danh thành công!</div>
+            {countdown !== null && (
+              <div className="countdown-text">
+                Chuyển về trang chính sau {countdown}s...
+              </div>
+            )}
+          </div>
+        )}
+        {tooFar && (
+          <div className="too-far-message">
+            <div>⚠️ Bạn ở quá xa lớp học, vui lòng liên hệ với giảng viên để điểm danh thủ công.</div>
+            {countdown !== null && (
+              <div className="countdown-text">
+                Chuyển về trang chính sau {countdown}s...
+              </div>
+            )}
           </div>
         )}
         <div className="scan-actions">

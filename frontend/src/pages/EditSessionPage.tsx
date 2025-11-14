@@ -56,10 +56,41 @@ function EditSessionPage() {
     });
   };
 
+  const handleGetCurrentLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setFormData({
+            ...formData,
+            latitude: position.coords.latitude.toString(),
+            longitude: position.coords.longitude.toString(),
+          });
+        },
+        () => {
+          alert('Không thể lấy vị trí hiện tại');
+        },
+      );
+    } else {
+      alert('Trình duyệt không hỗ trợ Geolocation');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!effectiveId) return;
+    
+    const trimmedCode = formData.publicCode?.trim().toUpperCase() || '';
+    // Chỉ gửi publicCode nếu đủ 6 ký tự, nếu không thì để undefined
+    const validPublicCode = trimmedCode.length === 6 ? trimmedCode : undefined;
+    
+    // Nếu có nhập publicCode nhưng không đủ 6 ký tự, báo lỗi
+    if (trimmedCode && trimmedCode.length !== 6) {
+      setError('Mã buổi phải có đúng 6 ký tự.');
+      return;
+    }
+    
     setLoading(true);
+    setError('');
     try {
       await api.patch(`/sessions/${effectiveId}`,
         {
@@ -69,10 +100,11 @@ function EditSessionPage() {
           latitude: parseFloat(formData.latitude),
           longitude: parseFloat(formData.longitude),
           geofenceRadius: parseInt(formData.geofenceRadius),
-          publicCode: formData.publicCode?.trim() ? formData.publicCode.trim().toUpperCase() : undefined,
+          publicCode: validPublicCode,
         },
       );
-      navigate(`/teacher/session/${formData.publicCode?.trim() || effectiveId}`);
+      // Chỉ navigate đến publicCode nếu nó hợp lệ (6 ký tự), nếu không thì dùng effectiveId
+      navigate(`/teacher/session/${validPublicCode || effectiveId}`);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Không thể cập nhật buổi học');
     } finally {
@@ -86,7 +118,6 @@ function EditSessionPage() {
     <div className="create-session-page">
       <div className="create-session-container">
         <h1>Sửa Buổi Học</h1>
-        {error && <div className="error-message">{error}</div>}
         <form onSubmit={handleSubmit} className="session-form">
           <div className="form-group">
             <label>Tiêu đề buổi học *</label>
@@ -95,6 +126,7 @@ function EditSessionPage() {
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               required
+              placeholder="VD: Buổi học 1 - Giới thiệu"
             />
           </div>
 
@@ -120,7 +152,7 @@ function EditSessionPage() {
           </div>
 
           <div className="form-section">
-            <h3>Mã buổi (tuỳ chọn)</h3>
+            <h3>Mã buổi</h3>
             <div className="form-row">
               <div className="form-group">
                 <label>Public code (tối đa 6 ký tự)</label>
@@ -135,13 +167,20 @@ function EditSessionPage() {
                   }}
                   placeholder="VD: ABC123"
                 />
-                <small>Để trống sẽ dùng sessionId mặc định.</small>
+                <small>Giảng viên cần đặt mã buổi duy nhất (6 ký tự chữ hoặc số).</small>
               </div>
             </div>
           </div>
 
           <div className="form-section">
             <h3>GPS Location</h3>
+            <button
+              type="button"
+              onClick={handleGetCurrentLocation}
+              className="location-button"
+            >
+              Lấy vị trí hiện tại
+            </button>
             <div className="form-row">
               <div className="form-group">
                 <label>Vĩ độ (Latitude) *</label>
@@ -150,6 +189,7 @@ function EditSessionPage() {
                   step="any"
                   value={formData.latitude}
                   onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
+                  placeholder="VD: 10.762622"
                   required />
               </div>
               <div className="form-group">
@@ -159,6 +199,7 @@ function EditSessionPage() {
                   step="any"
                   value={formData.longitude}
                   onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
+                  placeholder="VD: 106.660172"
                   required />
               </div>
               <div className="form-group">
@@ -167,12 +208,15 @@ function EditSessionPage() {
                   type="number"
                   value={formData.geofenceRadius}
                   onChange={(e) => setFormData({ ...formData, geofenceRadius: e.target.value })}
+                  placeholder="100"
                   min={10}
                   required
                 />
               </div>
             </div>
           </div>
+
+          {error && <div className="error-message">{error}</div>}
 
           <div className="form-actions">
             <button type="button" onClick={() => navigate(-1)} className="cancel-button">Hủy</button>
