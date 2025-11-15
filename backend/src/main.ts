@@ -13,6 +13,14 @@ async function bootstrap() {
   const frontendUrl = process.env.FRONTEND_URL;
   if (frontendUrl) {
     allowedOrigins.push(frontendUrl);
+    // Also allow HTTPS version if FRONTEND_URL is HTTP
+    if (frontendUrl.startsWith('http://')) {
+      allowedOrigins.push(frontendUrl.replace('http://', 'https://'));
+    }
+    // Also allow HTTP version if FRONTEND_URL is HTTPS (for development)
+    if (frontendUrl.startsWith('https://')) {
+      allowedOrigins.push(frontendUrl.replace('https://', 'http://'));
+    }
   }
 
   app.enableCors({
