@@ -31,7 +31,7 @@ docker compose version
 ### Cách 1: Dùng Git (Khuyên dùng)
 ```bash
 cd ~
-git clone <your-repo-url> SOA_QRAttendance
+git clone https://github.com/iannwendy/QRAttendanceCheckin SOA_QRAttendance
 cd SOA_QRAttendance
 ```
 
@@ -49,8 +49,17 @@ cd ~/SOA_QRAttendance
 # Copy file template
 cp env.production.example .env.production
 
+# Cài đặt nano editor (nếu chưa có)
+sudo apt update && sudo apt install -y nano
+
 # Chỉnh sửa file
 nano .env.production
+```
+
+**Lưu ý:** Nếu không muốn cài nano, có thể dùng `vi`:
+```bash
+vi .env.production
+# Trong vi: nhấn 'i' để vào insert mode, ESC để thoát, ':wq' để save và quit
 ```
 
 **QUAN TRỌNG - Cập nhật các giá trị sau:**

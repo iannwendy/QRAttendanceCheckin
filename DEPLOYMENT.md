@@ -35,7 +35,7 @@ docker compose version
 ```bash
 # Trên VPS
 cd ~
-git clone <your-repo-url> SOA_QRAttendance
+git clone https://github.com/iannwendy/QRAttendanceCheckin SOA_QRAttendance
 cd SOA_QRAttendance
 ```
 
@@ -52,10 +52,20 @@ scp -r /Users/iannwendy/Desktop/SOA_QRAttendance iannwendii@your-vps-ip:~/
 cd ~/SOA_QRAttendance
 
 # Copy file example
-cp .env.production.example .env.production
+cp env.production.example .env.production
+
+# Cài đặt nano editor (nếu chưa có)
+sudo apt update && sudo apt install -y nano
 
 # Chỉnh sửa file .env.production
 nano .env.production
+```
+
+**Lưu ý:** Nếu không muốn cài nano, có thể dùng `vi` hoặc `vim`:
+```bash
+vi .env.production
+# Hoặc
+vim .env.production
 ```
 
 **Quan trọng:** Cập nhật các giá trị sau:
