@@ -9,5 +9,3 @@ npx prisma db seed || echo "seed failed (might already be seeded)"
 
 echo "Starting NestJS..."
 node dist/src/main.js
-
-

@@ -30,7 +30,11 @@ services:
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-change_me_secure_password}@db:5432/${POSTGRES_DB:-attendance}
+      # Use DATABASE_URL from .env.production if set, otherwise construct from individual vars
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-change_me_secure_password}@db:5432/${POSTGRES_DB:-attendance}}
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_secure_password}
+      POSTGRES_DB: ${POSTGRES_DB:-attendance}
       JWT_SECRET: ${JWT_SECRET:-change_me_jwt_secret}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
       PORT: 8080
