@@ -13,6 +13,7 @@ import { PrismaModule } from './common/prisma/prisma.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { HealthController } from './health/health.controller';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     AttendanceModule,
     EvidenceModule,
   ],
+  controllers: [HealthController],
   providers: [
     {
       provide: APP_GUARD,
