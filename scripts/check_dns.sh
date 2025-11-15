@@ -9,21 +9,27 @@ echo ""
 
 # Kiểm tra từ VPS
 echo "📡 Kiểm tra từ VPS:"
-if command -v nslookup &> /dev/null; then
-    nslookup $DOMAIN
-elif command -v dig &> /dev/null; then
-    dig $DOMAIN +short
-else
+if command -v host &> /dev/null; then
     host $DOMAIN
+elif command -v getent &> /dev/null; then
+    getent hosts $DOMAIN
+elif command -v ping &> /dev/null; then
+    echo "⚠️  Không có công cụ DNS, đang cài đặt..."
+    sudo apt update && sudo apt install -y dnsutils
+    host $DOMAIN
+else
+    echo "❌ Không có công cụ DNS. Cài đặt: sudo apt install -y dnsutils"
 fi
 echo ""
 
-# Kiểm tra từ public DNS
+# Kiểm tra từ public DNS (nếu có dig)
 echo "🌐 Kiểm tra từ Google DNS (8.8.8.8):"
 if command -v dig &> /dev/null; then
     dig @8.8.8.8 $DOMAIN +short
-elif command -v nslookup &> /dev/null; then
-    nslookup $DOMAIN 8.8.8.8
+elif command -v host &> /dev/null; then
+    host $DOMAIN 8.8.8.8
+else
+    echo "⚠️  Cài đặt dnsutils để kiểm tra: sudo apt install -y dnsutils"
 fi
 echo ""
 
@@ -31,8 +37,8 @@ echo ""
 echo "🌐 Kiểm tra từ Cloudflare DNS (1.1.1.1):"
 if command -v dig &> /dev/null; then
     dig @1.1.1.1 $DOMAIN +short
-elif command -v nslookup &> /dev/null; then
-    nslookup $DOMAIN 1.1.1.1
+elif command -v host &> /dev/null; then
+    host $DOMAIN 1.1.1.1
 fi
 echo ""
 
