@@ -21,6 +21,15 @@ async function bootstrap() {
     if (frontendUrl.startsWith('https://')) {
       allowedOrigins.push(frontendUrl.replace('https://', 'http://'));
     }
+    // Also allow www and non-www versions
+    if (frontendUrl.includes('://www.')) {
+      allowedOrigins.push(frontendUrl.replace('://www.', '://'));
+    } else if (frontendUrl.includes('://') && !frontendUrl.includes('://www.')) {
+      // Add www version
+      const protocol = frontendUrl.split('://')[0];
+      const domain = frontendUrl.split('://')[1];
+      allowedOrigins.push(`${protocol}://www.${domain}`);
+    }
   }
 
   app.enableCors({
