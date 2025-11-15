@@ -62,9 +62,13 @@ rm -f /etc/nginx/sites-enabled/default
 echo "🧪 Đang test cấu hình Nginx..."
 nginx -t
 
-# Reload Nginx
-systemctl reload nginx
+# Start và enable Nginx
+echo "🚀 Đang khởi động Nginx..."
+systemctl start nginx
 systemctl enable nginx
+
+# Kiểm tra status
+systemctl status nginx --no-pager -l | head -5
 
 echo "✅ Nginx đã được cài đặt và cấu hình"
 echo ""
