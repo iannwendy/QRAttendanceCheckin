@@ -7,8 +7,12 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-# npm ci is faster and more reliable for production builds
-RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+# Use npm install if package-lock.json doesn't exist, otherwise use npm ci
+RUN if [ -f package-lock.json ]; then \
+      npm ci --legacy-peer-deps; \
+    else \
+      npm install --legacy-peer-deps; \
+    fi
 
 # Copy source code
 COPY . .
