@@ -176,10 +176,16 @@ async function main() {
     where: { code: 'INT101' },
     update: {
       name: 'Service-oriented architecture',
+      lecturer: {
+        connect: { id: lecturer.id },
+      },
     },
     create: {
       code: 'INT101',
       name: 'Service-oriented architecture',
+      lecturer: {
+        connect: { id: lecturer.id },
+      },
     },
   });
 

@@ -52,6 +52,22 @@ function TeacherDashboard() {
     navigate(`/teacher/class/${classId}/create-session`);
   };
 
+  const handleDeleteClass = async (classId: string, className: string) => {
+    const confirmDelete = window.confirm(
+      `Bạn có chắc chắn muốn xoá lớp học "${className}"? Hành động này sẽ xoá tất cả buổi học và dữ liệu liên quan. Hành động này không thể hoàn tác.`,
+    );
+    if (!confirmDelete) return;
+
+    try {
+      await api.delete(`/classes/${classId}`);
+      await fetchClasses();
+    } catch (err: any) {
+      console.error('Failed to delete class:', err);
+      const message = err.response?.data?.message || 'Không thể xoá lớp học';
+      alert(message);
+    }
+  };
+
   const handleViewSession = (sessionId: string, publicCode?: string | null) => {
     const slug = publicCode || sessionId;
     navigate(`/teacher/session/${slug}`);
@@ -150,6 +166,12 @@ function TeacherDashboard() {
                       className="create-session-button"
                     >
                       + Tạo Buổi Học
+                    </button>
+                    <button
+                      onClick={() => handleDeleteClass(classItem.id, `${classItem.code} - ${classItem.name}`)}
+                      className="delete-class-button"
+                    >
+                      Xoá Lớp
                     </button>
                   </div>
                 </div>

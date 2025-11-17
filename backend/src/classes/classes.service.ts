@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CreateClassDto } from './dto/create-class.dto';
 import { EnrollStudentsDto } from './dto/enroll-students.dto';
+import { Role } from '@prisma/client';
 
 @Injectable()
 export class ClassesService {
@@ -29,14 +30,37 @@ export class ClassesService {
             students: true,
           },
         },
+        lecturer: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async create(createClassDto: CreateClassDto) {
+  async create(createClassDto: CreateClassDto, creator?: { id: string; role: Role }) {
+    const data: any = {
+      code: createClassDto.code,
+      name: createClassDto.name,
+    };
+
+    const lecturerId =
+      creator?.role === Role.LECTURER
+        ? creator.id
+        : createClassDto.lecturerId;
+
+    if (lecturerId) {
+      data.lecturer = {
+        connect: { id: lecturerId },
+      };
+    }
+
     return this.prisma.class.create({
-      data: createClassDto,
+      data,
     });
   }
 
@@ -58,6 +82,13 @@ export class ClassesService {
         },
         sessions: {
           orderBy: { createdAt: 'desc' },
+        },
+        lecturer: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+          },
         },
       },
     });
@@ -126,5 +157,22 @@ export class ClassesService {
     }
 
     return enrollments;
+  }
+
+  async remove(id: string) {
+    const classData = await this.prisma.class.findUnique({
+      where: { id },
+    });
+
+    if (!classData) {
+      throw new NotFoundException('Lớp không tồn tại');
+    }
+
+    // Delete class (cascade will handle sessions, enrollments, attendances)
+    await this.prisma.class.delete({
+      where: { id },
+    });
+
+    return { message: 'Lớp học đã được xoá thành công' };
   }
 }

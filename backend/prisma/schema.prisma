@@ -19,6 +19,7 @@ model User {
 
   enrollments  Enrollment[]
   attendances  Attendance[]
+  taughtClasses Class[]   @relation("LecturerClasses")
 }
 
 model Class {
@@ -26,9 +27,13 @@ model Class {
   code      String       @unique
   name      String
   createdAt DateTime     @default(now())
+  lecturerId String?
 
   sessions  Session[]
   students  Enrollment[]
+  lecturer  User?        @relation("LecturerClasses", fields: [lecturerId], references: [id], onDelete: SetNull)
+
+  @@index([lecturerId])
 }
 
 model Enrollment {

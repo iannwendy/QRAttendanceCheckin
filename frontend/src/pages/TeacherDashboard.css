@@ -153,6 +153,18 @@
   box-shadow: 0 8px 20px rgba(34, 197, 94, 0.25);
 }
 
+.delete-class-button {
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 8px 20px rgba(239, 68, 68, 0.25);
+}
+
 .sessions-list h3 {
   margin-bottom: 15px;
   color: #333;

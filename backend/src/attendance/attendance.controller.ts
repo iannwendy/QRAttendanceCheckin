@@ -62,6 +62,13 @@ export class AttendanceController {
     return this.attendanceService.getClassAttendanceReport(classId);
   }
 
+  @Get('analytics/overview')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  async getAttendanceAnalyticsOverview() {
+    return this.attendanceService.getAttendanceAnalyticsOverview();
+  }
+
   @Get('session/:id')
   @UseGuards(RolesGuard)
   @Roles(Role.LECTURER, Role.ADMIN)

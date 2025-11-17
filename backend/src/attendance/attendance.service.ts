@@ -369,6 +369,13 @@ export class AttendanceService {
           },
           orderBy: { startTime: 'asc' },
         },
+        lecturer: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+          },
+        },
       },
     });
 
@@ -437,6 +444,13 @@ export class AttendanceService {
         id: classData.id,
         code: classData.code,
         name: classData.name,
+        lecturer: classData.lecturer
+          ? {
+              id: classData.lecturer.id,
+              fullName: classData.lecturer.fullName,
+              email: classData.lecturer.email,
+            }
+          : null,
       },
       totalSessions,
       totalStudents: classData.students.length,
@@ -466,6 +480,13 @@ export class AttendanceService {
             startTime: true,
           },
           orderBy: { startTime: 'asc' },
+        },
+        lecturer: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+          },
         },
       },
       orderBy: { code: 'asc' },
@@ -511,6 +532,13 @@ export class AttendanceService {
           id: classData.id,
           code: classData.code,
           name: classData.name,
+          lecturer: classData.lecturer
+            ? {
+                id: classData.lecturer.id,
+                fullName: classData.lecturer.fullName,
+                email: classData.lecturer.email,
+              }
+            : null,
         },
         totalSessions,
         totalStudents: classData.students.length,
@@ -519,5 +547,156 @@ export class AttendanceService {
     }
 
     return allReports;
+  }
+
+  async getAttendanceAnalyticsOverview() {
+    const now = new Date();
+    const [allReports, liveSessions] = await Promise.all([
+      this.getAllClassesAttendanceReport(),
+      this.prisma.session.findMany({
+        where: {
+          startTime: { lte: now },
+          endTime: { gte: now },
+        },
+        include: {
+          class: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              lecturer: {
+                select: {
+                  id: true,
+                  fullName: true,
+                  email: true,
+                },
+              },
+            },
+          },
+          attendances: {
+            select: {
+              status: true,
+            },
+          },
+        },
+        orderBy: { startTime: 'asc' },
+      }),
+    ]);
+
+    const classStats = allReports.map((classReport) => {
+      const totalStudents = classReport.students.length;
+      const totalAttendanceRate = classReport.students.reduce(
+        (sum, student) => sum + (student.attendanceRate || 0),
+        0,
+      );
+      const avgAttendance =
+        totalStudents > 0 ? totalAttendanceRate / totalStudents : 0;
+
+      return {
+        classId: classReport.class.id,
+        classCode: classReport.class.code,
+        className: classReport.class.name,
+        lecturer: classReport.class.lecturer,
+        totalSessions: classReport.totalSessions,
+        totalStudents: classReport.totalStudents,
+        averageAttendance: Math.round(avgAttendance * 100) / 100,
+      };
+    });
+
+    const lecturerMap = new Map<
+      string,
+      {
+        lecturerId: string | null;
+        lecturerName: string;
+        lecturerEmail: string | null;
+        totalClasses: number;
+        totalStudents: number;
+        cumulativeAttendance: number;
+      }
+    >();
+
+    classStats.forEach((stat) => {
+      const key = stat.lecturer?.id || 'unassigned';
+      if (!lecturerMap.has(key)) {
+        lecturerMap.set(key, {
+          lecturerId: stat.lecturer?.id || null,
+          lecturerName: stat.lecturer?.fullName || 'Chưa gán',
+          lecturerEmail: stat.lecturer?.email || null,
+          totalClasses: 0,
+          totalStudents: 0,
+          cumulativeAttendance: 0,
+        });
+      }
+      const bucket = lecturerMap.get(key)!;
+      bucket.totalClasses += 1;
+      bucket.totalStudents += stat.totalStudents;
+      bucket.cumulativeAttendance += stat.averageAttendance;
+    });
+
+    const lecturerStats = Array.from(lecturerMap.values())
+      .map((bucket) => ({
+        lecturerId: bucket.lecturerId,
+        lecturerName: bucket.lecturerName,
+        lecturerEmail: bucket.lecturerEmail,
+        totalClasses: bucket.totalClasses,
+        totalStudents: bucket.totalStudents,
+        averageAttendance:
+          bucket.totalClasses > 0
+            ? Math.round(
+                (bucket.cumulativeAttendance / bucket.totalClasses) * 100,
+              ) / 100
+            : 0,
+      }))
+      .sort((a, b) => b.averageAttendance - a.averageAttendance);
+
+    const liveSessionStats = liveSessions.map((session) => {
+      const approved = session.attendances.filter(
+        (a) => a.status === AttendanceStatus.APPROVED,
+      ).length;
+      const pending = session.attendances.filter(
+        (a) => a.status === AttendanceStatus.PENDING,
+      ).length;
+      const rejected = session.attendances.filter(
+        (a) => a.status === AttendanceStatus.REJECTED,
+      ).length;
+      const total = session.attendances.length;
+      const notCheckedIn = Math.max(total - approved - pending - rejected, 0);
+      const attendanceRate = total > 0 ? Math.round((approved / total) * 100) : 0;
+
+      return {
+        sessionId: session.id,
+        title: session.title,
+        startTime: session.startTime,
+        endTime: session.endTime,
+        class: session.class,
+        approved,
+        pending,
+        rejected,
+        notCheckedIn,
+        total,
+        attendanceRate,
+      };
+    });
+
+    const summaryAverage =
+      classStats.length > 0
+        ? Math.round(
+            (classStats.reduce((sum, item) => sum + item.averageAttendance, 0) /
+              classStats.length) *
+              100,
+          ) / 100
+        : 0;
+
+    return {
+      summary: {
+        totalClasses: classStats.length,
+        activeLecturers: lecturerStats.filter((lec) => lec.lecturerId).length,
+        averageAttendance: summaryAverage,
+        liveSessions: liveSessionStats.length,
+      },
+      classStats,
+      lecturerStats,
+      liveSessions: liveSessionStats,
+    };
   }
 }
