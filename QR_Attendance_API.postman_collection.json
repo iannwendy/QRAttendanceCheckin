@@ -223,6 +223,37 @@
 						"description": "Đăng ký sinh viên vào lớp học (LECTURER, ADMIN)"
 					},
 					"response": []
+				},
+				{
+					"name": "Delete Class",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/classes/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"classes",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "",
+									"description": "Class ID"
+								}
+							]
+						},
+						"description": "Xóa lớp học (LECTURER, ADMIN)"
+					},
+					"response": []
 				}
 			],
 			"description": "Quản lý lớp học"
