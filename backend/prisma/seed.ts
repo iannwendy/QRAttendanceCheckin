@@ -3,9 +3,9 @@ import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
-// Danh sách tên tiếng Việt
+// Danh sách tên tiếng Việt - 100 sinh viên
 const vietnameseNames = [
-  'Nguyễn Văn An',
+  'Nguyễn Văn Án',
   'Trần Thị Bình',
   'Lê Văn Cường',
   'Phạm Thị Dung',
