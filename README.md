@@ -1,99 +1,99 @@
 # QR Attendance System
 
-Hệ thống điểm danh bằng QR code với GPS, OTP fallback và ảnh có watermark.
+A QR-based attendance system with GPS verification, OTP fallback, and watermarked photos.
 
 ![Demo](docs/demo.png)
 
-## Kiến trúc
+## Architecture
 
 - **Backend**: NestJS, Prisma ORM, PostgreSQL
 - **Frontend**: React, Vite, TypeScript
 - **Database**: PostgreSQL 16
-- **Authentication**: JWT với roles (STUDENT, LECTURER, ADMIN)
+- **Authentication**: JWT with roles (STUDENT, LECTURER, ADMIN)
 
-## Cài đặt
+## Setup
 
 ### Prerequisites
 
 - Node.js 20+
-- Docker và Docker Compose
+- Docker and Docker Compose
 
-### Khởi động với Docker
+### Start with Docker
 
 ```bash
 docker compose up -d
 ```
 
 Services:
-- `db`: PostgreSQL (port 5433 trên host)
+- `db`: PostgreSQL (port 5433 on host)
 - `backend`: NestJS API (port 8080)
 - `frontend`: React app (port 3000)
 
-### Triển khai production (VPS / domain)
+### Production deployment (VPS / domain)
 
-1. Nhân bản file cấu hình mẫu:
+1. Copy the sample production config:
    ```bash
    cp env.production.ready .env.production
    ```
-2. Chỉnh sửa `.env.production` với thông tin bảo mật riêng:
-   - `POSTGRES_*`, `JWT_SECRET`: đổi sang giá trị mạnh, chỉ biết nội bộ
-   - `FRONTEND_URL=https://qrattendance.xyz` (hoặc domain chính thức của bạn)
-   - `VITE_API_BASE=https://qrattendance.xyz/api` (hoặc endpoint backend công khai)
-3. Khởi động stack production:
+2. Edit `.env.production` with your own secure values:
+   - `POSTGRES_*`, `JWT_SECRET`: change to strong secrets, known only internally
+   - `FRONTEND_URL=https://qrattendance.xyz` (or your official domain)
+   - `VITE_API_BASE=https://qrattendance.xyz/api` (or your public backend endpoint)
+3. Start the production stack:
    ```bash
    docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
    ```
-4. Kiểm tra sau deploy:
+4. Verify after deployment:
    - Frontend: `curl -I https://qrattendance.xyz`
    - Backend health: `curl -I https://qrattendance.xyz/api/health`
-5. Nếu dùng reverse proxy/Nginx, tham khảo `docs/CAU_HINH_DOMAIN_HTTPS.md` để cấp HTTPS cho domain mới.
+5. If you use a reverse proxy/Nginx, see `docs/CAU_HINH_DOMAIN_HTTPS.md` for enabling HTTPS on your domain.
 
 Services (docker-compose.prod.yml):
 - `db`: PostgreSQL (port 5432)
 - `backend`: NestJS API (port `${BACKEND_PORT:-8080}`)
-- `frontend`: React build (port 3000 → 80 trong container, thường được proxy qua Nginx)
+- `frontend`: React build (port 3000 → 80 inside container, usually proxied via Nginx)
 
-## Tài khoản mặc định
+## Default accounts
 
 - **Admin**: `admin` / `pass123`
 - **Lecturer**: `lecturer` / `pass123`
-- **Students**: `523H0001` đến `523H0100` / `pass123`
+- **Students**: `523H0001` to `523H0100` / `pass123`
 
-## Tính năng chính
+## Main features
 
-### Sinh viên
-- Đăng nhập và quét QR để điểm danh (tự động kiểm tra GPS)
-- Điểm danh bằng OTP + ảnh (fallback khi không có GPS)
-- Ảnh có watermark: MSSV, mã buổi, OTP, timestamp
+### Students
+- Log in and scan QR to check in (GPS automatically validated)
+- Check in via OTP + photo (fallback when GPS is unavailable)
+- Photos include watermark: student ID, session code, OTP, timestamp
 
-### Giảng viên
-- Quản lý lớp học và buổi học
-- Tạo buổi học với mã công khai (publicCode) dễ nhớ
-- QR code tự động rotate mỗi 60s, OTP mỗi 30s
-- Xem danh sách điểm danh và ảnh bằng chứng
-- Sửa và xóa buổi học
+### Lecturers
+- Manage classes and sessions
+- Create sessions with human-friendly public codes (`publicCode`)
+- Auto-rotating QR every 60s, OTP every 30s
+- View attendance list and evidence photos
+- Edit and delete sessions
 
-## API chính
+## Core APIs
 
-- `POST /auth/login` - Đăng nhập
-- `POST /sessions` - Tạo buổi học
-- `GET /sessions/code/:code` - Lấy buổi học theo publicCode
-- `GET /sessions/:id/qr` - Lấy QR token
-- `GET /sessions/:id/otp` - Lấy OTP
-- `POST /attendance/checkin-qr` - Điểm danh bằng QR
-- `POST /attendance/checkin-otp` - Điểm danh bằng OTP
+- `POST /auth/login` - Login
+- `POST /sessions` - Create a session
+- `GET /sessions/code/:code` - Get a session by `publicCode`
+- `GET /sessions/:id/qr` - Get QR token
+- `GET /sessions/:id/otp` - Get OTP
+- `POST /attendance/checkin-qr` - Check in via QR
+- `POST /attendance/checkin-otp` - Check in via OTP
 
 ## Database ERD
 
 ![ERD](docs/erd.png)
 
-Xem chi tiết tại [docs/erd-relationships.md](docs/erd-relationships.md)
+See more details in [docs/erd-relationships.md](docs/erd-relationships.md)
 
 ## Troubleshooting
 
-- **Database**: Kiểm tra container `db` đang chạy: `docker ps`
-- **Domain/HTTPS**: Đảm bảo DNS của `qrattendance.xyz` (hoặc domain của bạn) trỏ đúng IP và chứng chỉ SSL còn hạn
-- **GPS/Camera**: Cần HTTPS (dùng domain/SSL) và cấp quyền trên mobile browser
+- **Database**: Ensure `db` container is running: `docker ps`
+- **Domain/HTTPS**: Make sure DNS for `qrattendance.xyz` (or your domain) points to the correct IP and SSL certificates are valid
+- **GPS/Camera**: Requires HTTPS (domain with SSL) and appropriate permissions on mobile browsers
 
 ## License
 
