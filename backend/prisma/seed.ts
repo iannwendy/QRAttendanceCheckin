@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 
 // Danh sách tên tiếng Việt - 100 sinh viên
 const vietnameseNames = [
-  'Nguyễn Văn Án',
+  'Nguyễn Văn Ánh',
   'Trần Thị Bình',
   'Lê Văn Cường',
   'Phạm Thị Dung',
