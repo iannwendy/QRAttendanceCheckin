@@ -29,7 +29,7 @@ Services:
 - `backend`: NestJS API (port 8080)
 - `frontend`: React app (port 3000)
 
-### Production deployment (VPS / domain)
+### Production Deployment (VPS / domain)
 
 1. Copy the sample production config:
    ```bash
@@ -53,13 +53,13 @@ Services (docker-compose.prod.yml):
 - `backend`: NestJS API (port `${BACKEND_PORT:-8080}`)
 - `frontend`: React build (port 3000 → 80 inside container, usually proxied via Nginx)
 
-## Default accounts
+## Default Accounts
 
 - **Admin**: `admin` / `pass123`
 - **Lecturer**: `lecturer` / `pass123`
 - **Students**: `523H0001` to `523H0100` / `pass123`
 
-## Main features
+## Main Features
 
 ### Students
 - Log in and scan QR to check in (GPS automatically validated)
@@ -97,7 +97,5 @@ See more details in [docs/erd-relationships.md](docs/erd-relationships.md)
 
 ## License
 
-MIT 
-<!-- Đây là comment, sẽ KHÔNG hiển thị -->
-<!-- Đây là comment, sẽ KHÔNG hiển thị -->
+MIT
 <!-- Đây là comment, sẽ KHÔNG hiển thị -->
