@@ -64,7 +64,7 @@ const vietnameseNames = [
   'Lý Văn Việt',
   'Võ Thị Xuân',
   'Dương Văn Yên',
-  'Đặng Thị Anh',
+  'Đặng Thị Ánh',
   'Nguyễn Văn Bảo',
   'Trần Thị Chi',
   'Lê Văn Dũng',
