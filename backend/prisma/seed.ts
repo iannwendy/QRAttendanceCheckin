@@ -8,7 +8,7 @@ const vietnameseNames = [
   'Nguyễn Văn Ánh',
   'Trần Thị Bình',
   'Lê Văn Cường',
-  'Phạm Thị Dung',
+  'Phạm Thị Dụng',
   'Hoàng Văn Đức',
   'Vũ Thị Hương',
   'Đỗ Văn Hùng',
