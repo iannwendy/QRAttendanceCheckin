@@ -97,5 +97,6 @@ See more details in [docs/erd-relationships.md](docs/erd-relationships.md)
 
 ## License
 
-MIT
+MIT MIT MIT MIT
+NBM TETS
 <!-- Đây là comment, sẽ KHÔNG hiển thị -->
