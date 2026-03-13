@@ -14,8 +14,8 @@
 
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { authenticator } from 'otplib';
-import { PrismaService } from '../common/prisma/prisma.service';
-import { CreateSessionDto } from '../sessions/dto/create-session.dto';
+import { PrismaService } from '../../common/prisma/prisma.service';
+import { CreateSessionDto } from '../dto/create-session.dto';
 
 export interface SessionBuildResult {
   session: any;

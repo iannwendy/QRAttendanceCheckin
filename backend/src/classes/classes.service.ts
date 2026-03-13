@@ -7,11 +7,13 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import { CreateClassDto } from './dto/create-class.dto';
 import { EnrollStudentsDto } from './dto/enroll-students.dto';
 import { Role } from '@prisma/client';
+import { Cached, invalidateCache } from '../common/decorators/cache-decorator';
 
 @Injectable()
 export class ClassesService {
   constructor(private prisma: PrismaService) {}
 
+  @Cached(300) // Cache 5 phút
   async findAll() {
     return this.prisma.class.findMany({
       include: {
@@ -59,11 +61,18 @@ export class ClassesService {
       };
     }
 
-    return this.prisma.class.create({
+    const result = await this.prisma.class.create({
       data,
     });
+
+    // Invalidate cache after create
+    invalidateCache('ClassesService:findAll');
+    invalidateCache('ClassesService:findOne');
+
+    return result;
   }
 
+  @Cached(300) // Cache 5 phút
   async findOne(id: string) {
     const classData = await this.prisma.class.findUnique({
       where: { id },
@@ -156,6 +165,11 @@ export class ClassesService {
       }
     }
 
+    // Invalidate cache after enrollment
+    invalidateCache('ClassesService:findAll');
+    invalidateCache(`ClassesService:findOne.*${classId}`);
+    invalidateCache('AttendanceService:.*Report');
+
     return enrollments;
   }
 
@@ -172,6 +186,11 @@ export class ClassesService {
     await this.prisma.class.delete({
       where: { id },
     });
+
+    // Invalidate cache after delete
+    invalidateCache('ClassesService:findAll');
+    invalidateCache(`ClassesService:findOne.*${id}`);
+    invalidateCache('AttendanceService:.*Report');
 
     return { message: 'Lớp học đã được xoá thành công' };
   }

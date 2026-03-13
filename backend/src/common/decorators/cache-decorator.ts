@@ -24,15 +24,24 @@ export interface CacheStore {
   get<T>(key: string): T | undefined;
   set<T>(key: string, value: T, ttl: number): void;
   delete(key: string): void;
+  deleteByPattern(pattern: string): void;
   clear(): void;
 }
 
 /**
- * In-memory Cache Store Implementation
+ * In-memory Cache Store Implementation (Singleton)
  */
 @Injectable()
 export class InMemoryCacheStore implements CacheStore {
+  private static instance: InMemoryCacheStore;
   private cache = new Map<string, { value: any; expiresAt: number }>();
+
+  constructor() {
+    if (InMemoryCacheStore.instance) {
+      return InMemoryCacheStore.instance;
+    }
+    InMemoryCacheStore.instance = this;
+  }
 
   get<T>(key: string): T | undefined {
     const item = this.cache.get(key);
@@ -57,38 +66,51 @@ export class InMemoryCacheStore implements CacheStore {
     this.cache.delete(key);
   }
 
+  deleteByPattern(pattern: string): void {
+    const regex = new RegExp(pattern);
+    for (const key of this.cache.keys()) {
+      if (regex.test(key)) {
+        this.cache.delete(key);
+      }
+    }
+  }
+
   clear(): void {
     this.cache.clear();
   }
 }
 
+// Global singleton cache store
+const globalCacheStore = new InMemoryCacheStore();
+
 /**
  * Decorator Factory - Tạo cached version của service method
  */
-export function cached(ttlSeconds: number = 300) {
+export function Cached(ttlSeconds: number = 300) {
   return function (
     target: any,
     propertyKey: string,
     descriptor: PropertyDescriptor,
   ) {
     const originalMethod = descriptor.value;
-    const cacheStore = new InMemoryCacheStore();
 
     descriptor.value = async function (...args: any[]) {
       // Tạo cache key từ method name và arguments
       const cacheKey = `${target.constructor.name}:${propertyKey}:${JSON.stringify(args)}`;
       
       // Thử lấy từ cache
-      const cached = cacheStore.get(cacheKey);
+      const cached = globalCacheStore.get(cacheKey);
       if (cached !== undefined) {
+        console.log(`[CACHE HIT] ${cacheKey}`);
         return cached;
       }
 
+      console.log(`[CACHE MISS] ${cacheKey}`);
       // Gọi method gốc
       const result = await originalMethod.apply(this, args);
       
       // Lưu vào cache
-      cacheStore.set(cacheKey, result, ttlSeconds);
+      globalCacheStore.set(cacheKey, result, ttlSeconds);
       
       return result;
     };
@@ -98,75 +120,18 @@ export function cached(ttlSeconds: number = 300) {
 }
 
 /**
- * Cache Decorator cho Classes Service
+ * Helper function to invalidate cache by pattern
  */
-@Injectable()
-export class CachedClassesService {
-  private cache: CacheStore;
-
-  constructor(private originalService: any) {
-    this.cache = new InMemoryCacheStore();
-  }
-
-  @cached(300) // Cache 5 phút
-  async findAll() {
-    return this.originalService.findAll();
-  }
-
-  @cached(300)
-  async findOne(id: string) {
-    return this.originalService.findOne(id);
-  }
-
-  /**
-   * Xóa cache khi có thay đổi
-   */
-  clearCache(): void {
-    this.cache.clear();
-  }
+export function invalidateCache(pattern: string): void {
+  globalCacheStore.deleteByPattern(pattern);
+  console.log(`[CACHE INVALIDATE] Pattern: ${pattern}`);
 }
 
 /**
- * Cache Decorator cho Attendance Service
+ * Helper function to clear all cache
  */
-@Injectable()
-export class CachedAttendanceService {
-  private cache: CacheStore;
-
-  constructor(private originalService: any) {
-    this.cache = new InMemoryCacheStore();
-  }
-
-  @cached(60) // Cache 1 phút cho analytics
-  async getAttendanceAnalyticsOverview() {
-    return this.originalService.getAttendanceAnalyticsOverview();
-  }
-
-  @cached(60)
-  async getAllClassesAttendanceReport() {
-    return this.originalService.getAllClassesAttendanceReport();
-  }
-
-  @cached(120) // Cache 2 phút cho report của một lớp
-  async getClassAttendanceReport(classId: string) {
-    // Tạo cache key riêng cho từng classId
-    const cacheKey = `AttendanceService:getClassAttendanceReport:${classId}`;
-    
-    const cached = this.cache.get(cacheKey);
-    if (cached !== undefined) {
-      return cached;
-    }
-
-    const result = await this.originalService.getClassAttendanceReport(classId);
-    this.cache.set(cacheKey, result, 120);
-    return result;
-  }
-
-  /**
-   * Xóa cache khi có thay đổi attendance
-   */
-  clearCache(): void {
-    this.cache.clear();
-  }
+export function clearAllCache(): void {
+  globalCacheStore.clear();
+  console.log(`[CACHE CLEAR] All cache cleared`);
 }
 

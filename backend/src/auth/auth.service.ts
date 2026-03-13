@@ -1,13 +1,14 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { AuthStrategyContext } from './strategies/auth-strategy';
 import { UsersService } from '../users/users.service';
-import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private usersService: UsersService,
+    private authStrategyContext: AuthStrategyContext,
     private jwtService: JwtService,
+    private usersService: UsersService,
   ) {}
 
   async login(username: string, password: string) {
@@ -16,20 +17,9 @@ export class AuthService {
       throw new UnauthorizedException('Sai mật khẩu');
     }
 
-    let user = null as any;
-    const lower = (username || '').trim().toLowerCase();
-    if (lower === 'admin') {
-      user = await this.usersService.findByRole('ADMIN');
-    } else if (lower === 'lecturer') {
-      user = await this.usersService.findByRole('LECTURER');
-    } else {
-      // Assume MSSV
-      const code = username.trim().toUpperCase();
-      user = await this.usersService.findByStudentCode(code);
-    }
-    if (!user) {
-      throw new UnauthorizedException('Tài khoản không tồn tại');
-    }
+    // Sử dụng Strategy Pattern để xác định loại user và authenticate
+    const authResult = await this.authStrategyContext.authenticate(username);
+    const user = authResult.user;
 
     const payload = {
       sub: user.id,

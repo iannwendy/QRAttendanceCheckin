@@ -12,6 +12,12 @@ import { authenticator } from 'otplib';
 import { ConfigService } from '@nestjs/config';
 import { EvidenceService } from '../evidence/evidence.service';
 import { AttendanceMethod, AttendanceStatus } from '@prisma/client';
+import {
+  AttendanceSubject,
+  AttendanceLoggingObserver,
+  AttendanceAnalyticsObserver,
+} from './observers/attendance-observer';
+import { Cached, invalidateCache } from '../common/decorators/cache-decorator';
 
 // Type declaration for Express.Multer.File
 declare global {
@@ -39,7 +45,14 @@ export class AttendanceService {
     private sessionsService: SessionsService,
     private evidenceService: EvidenceService,
     private configService: ConfigService,
-  ) {}
+    private subject: AttendanceSubject,
+    private loggingObserver: AttendanceLoggingObserver,
+    private analyticsObserver: AttendanceAnalyticsObserver,
+  ) {
+    // Attach observers to subject
+    this.subject.attach(this.loggingObserver);
+    this.subject.attach(this.analyticsObserver);
+  }
 
   async checkInQR(studentId: string, checkInDto: CheckInQRDto) {
     // Verify QR token - có thể là JWT signed hoặc JSON string
@@ -138,7 +151,7 @@ export class AttendanceService {
         if (existing.status === 'APPROVED') {
           return existing; // already approved, keep as is
         }
-        return this.prisma.attendance.update({
+        const updated = await this.prisma.attendance.update({
           where: { id: existing.id },
           data: {
             method: AttendanceMethod.QR_GPS,
@@ -148,8 +161,22 @@ export class AttendanceService {
             accuracy: checkInDto.accuracy,
           },
         });
+        // Notify observers
+        await this.subject.notify({
+          attendanceId: updated.id,
+          studentId,
+          sessionId,
+          oldStatus: existing.status,
+          newStatus: 'TOO_FAR' as unknown as AttendanceStatus,
+          method: 'QR_GPS',
+          timestamp: new Date(),
+        });
+        // Invalidate cache
+        invalidateCache('AttendanceService:.*Report');
+        invalidateCache('AttendanceService:.*Analytics');
+        return updated;
       } else {
-        return this.prisma.attendance.create({
+        const created = await this.prisma.attendance.create({
           data: {
             sessionId,
             studentId,
@@ -160,6 +187,20 @@ export class AttendanceService {
             accuracy: checkInDto.accuracy,
           },
         });
+        // Notify observers
+        await this.subject.notify({
+          attendanceId: created.id,
+          studentId,
+          sessionId,
+          oldStatus: null,
+          newStatus: 'TOO_FAR' as unknown as AttendanceStatus,
+          method: 'QR_GPS',
+          timestamp: new Date(),
+        });
+        // Invalidate cache
+        invalidateCache('AttendanceService:.*Report');
+        invalidateCache('AttendanceService:.*Analytics');
+        return created;
       }
     }
 
@@ -168,7 +209,7 @@ export class AttendanceService {
       if (existing.status === 'APPROVED') {
         return existing;
       }
-      return this.prisma.attendance.update({
+      const updated = await this.prisma.attendance.update({
         where: { id: existing.id },
         data: {
           method: AttendanceMethod.QR_GPS,
@@ -178,10 +219,24 @@ export class AttendanceService {
           accuracy: checkInDto.accuracy,
         },
       });
+      // Notify observers
+      await this.subject.notify({
+        attendanceId: updated.id,
+        studentId,
+        sessionId,
+        oldStatus: existing.status,
+        newStatus: AttendanceStatus.APPROVED,
+        method: 'QR_GPS',
+        timestamp: new Date(),
+      });
+      // Invalidate cache
+      invalidateCache('AttendanceService:.*Report');
+      invalidateCache('AttendanceService:.*Analytics');
+      return updated;
     }
 
     // No existing record -> create as approved
-    return this.prisma.attendance.create({
+    const created = await this.prisma.attendance.create({
       data: {
         sessionId,
         studentId,
@@ -192,6 +247,20 @@ export class AttendanceService {
         accuracy: checkInDto.accuracy,
       },
     });
+    // Notify observers
+    await this.subject.notify({
+      attendanceId: created.id,
+      studentId,
+      sessionId,
+      oldStatus: null,
+      newStatus: AttendanceStatus.APPROVED,
+      method: 'QR_GPS',
+      timestamp: new Date(),
+    });
+    // Invalidate cache
+    invalidateCache('AttendanceService:.*Report');
+    invalidateCache('AttendanceService:.*Analytics');
+    return created;
   }
 
   async checkInOTP(
@@ -267,6 +336,7 @@ export class AttendanceService {
     const photoUrl = await this.evidenceService.uploadPhoto(file);
 
     let attendance;
+    const oldStatus = existing?.status ?? null;
     if (existing) {
       attendance = await this.prisma.attendance.update({
         where: { id: existing.id },
@@ -296,6 +366,21 @@ export class AttendanceService {
         metaJson: JSON.stringify(checkInDto.meta),
       },
     });
+
+    // Notify observers
+    await this.subject.notify({
+      attendanceId: attendance.id,
+      studentId,
+      sessionId: session.id,
+      oldStatus,
+      newStatus: AttendanceStatus.PENDING,
+      method: 'OTP_PHOTO',
+      timestamp: new Date(),
+    });
+
+    // Invalidate cache
+    invalidateCache('AttendanceService:.*Report');
+    invalidateCache('AttendanceService:.*Analytics');
 
     return attendance;
   }
@@ -332,6 +417,19 @@ export class AttendanceService {
       data: { status: AttendanceStatus.APPROVED },
       include: { student: true, evidence: true },
     });
+    // Notify observers
+    await this.subject.notify({
+      attendanceId: att.id,
+      studentId: att.studentId,
+      sessionId: att.sessionId,
+      oldStatus: null,
+      newStatus: AttendanceStatus.APPROVED,
+      method: att.method,
+      timestamp: new Date(),
+    });
+    // Invalidate cache
+    invalidateCache('AttendanceService:.*Report');
+    invalidateCache('AttendanceService:.*Analytics');
     return att;
   }
 
@@ -341,9 +439,23 @@ export class AttendanceService {
       data: { status: AttendanceStatus.REJECTED },
       include: { student: true, evidence: true },
     });
+    // Notify observers
+    await this.subject.notify({
+      attendanceId: att.id,
+      studentId: att.studentId,
+      sessionId: att.sessionId,
+      oldStatus: null,
+      newStatus: AttendanceStatus.REJECTED,
+      method: att.method,
+      timestamp: new Date(),
+    });
+    // Invalidate cache
+    invalidateCache('AttendanceService:.*Report');
+    invalidateCache('AttendanceService:.*Analytics');
     return att;
   }
 
+  @Cached(120) // Cache 2 phút
   async getClassAttendanceReport(classId: string) {
     const classData = await this.prisma.class.findUnique({
       where: { id: classId },
@@ -458,6 +570,7 @@ export class AttendanceService {
     };
   }
 
+  @Cached(60) // Cache 1 phút
   async getAllClassesAttendanceReport() {
     const classes = await this.prisma.class.findMany({
       include: {
@@ -549,6 +662,7 @@ export class AttendanceService {
     return allReports;
   }
 
+  @Cached(60) // Cache 1 phút
   async getAttendanceAnalyticsOverview() {
     const now = new Date();
     const [allReports, liveSessions] = await Promise.all([
