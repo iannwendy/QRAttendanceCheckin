@@ -4,8 +4,10 @@ import { CreateSessionDto } from './dto/create-session.dto';
 import { authenticator } from 'otplib';
 import { QRTokenService } from '../common/utils/qr-token.util';
 import { JwtService } from '@nestjs/jwt';
-import { AttendanceMethod, AttendanceStatus, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
+import { SessionBuilderDirector } from './builders/session.builder';
+import { QuickCreateSessionDto } from './dto/quick-create-session.dto';
 
 @Injectable()
 export class SessionsService {
@@ -14,6 +16,7 @@ export class SessionsService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private sessionBuilderDirector: SessionBuilderDirector,
   ) {
     this.qrTokenService = new QRTokenService(
       this.jwtService,
@@ -22,99 +25,13 @@ export class SessionsService {
   }
 
   async create(createSessionDto: CreateSessionDto) {
-    const otpSecret = authenticator.generateSecret();
-    const rawCode = (createSessionDto.publicCode || '').trim().toUpperCase();
-    if (!rawCode) {
-      throw new BadRequestException('Mã buổi là bắt buộc');
-    }
+    const result = await this.sessionBuilderDirector.buildStandardSession(createSessionDto);
+    return result.session;
+  }
 
-    const conflict = await this.prisma.session.findFirst({
-      where: { publicCode: rawCode } as any,
-      select: { id: true },
-    });
-    if (conflict) {
-      throw new BadRequestException('Mã buổi đã tồn tại, vui lòng chọn mã khác');
-    }
-
-    const session = await this.prisma.session.create({
-      data: {
-        classId: createSessionDto.classId,
-        title: createSessionDto.title,
-        startTime: new Date(createSessionDto.startTime),
-        endTime: new Date(createSessionDto.endTime),
-        latitude: createSessionDto.latitude,
-        longitude: createSessionDto.longitude,
-        geofenceRadius: createSessionDto.geofenceRadius,
-        otpSecret,
-        publicCode: rawCode,
-      } as any,
-    });
-
-    // Auto import 100 students 523H0001 - 523H0100 into the class and seed NOT_ATTENDED records
-    const toPadded = (n: number) => n.toString().padStart(4, '0');
-    const studentCodes = Array.from(
-      { length: 100 },
-      (_, i) => `523H${toPadded(i + 1)}`,
-    );
-
-    // Fetch existing users by studentCode
-    const existingUsers = await this.prisma.user.findMany({
-      where: { studentCode: { in: studentCodes } },
-      select: { id: true, studentCode: true },
-    });
-    const existingCodeSet = new Set(
-      existingUsers.map((u) => u.studentCode as string),
-    );
-
-    // Create missing users with basic placeholders
-    const missingCodes = studentCodes.filter(
-      (code) => !existingCodeSet.has(code),
-    );
-    if (missingCodes.length > 0) {
-      await this.prisma.user.createMany({
-        data: missingCodes.map((code, idx) => ({
-          email: `${code.toLowerCase()}@example.edu`,
-          passwordHash: '',
-          fullName: `Sinh viên ${code}`,
-          studentCode: code,
-          role: 'STUDENT',
-        })),
-        skipDuplicates: true,
-      });
-    }
-
-    // Re-fetch all users to get ids
-    const allUsers = await this.prisma.user.findMany({
-      where: { studentCode: { in: studentCodes } },
-      select: { id: true, studentCode: true },
-    });
-    const codeToUserId = new Map(
-      allUsers.map((u) => [u.studentCode as string, u.id]),
-    );
-
-    // Ensure enrollments into the class
-    const enrollData = allUsers.map((u) => ({
-      classId: session.classId,
-      studentId: u.id,
-    }));
-    await this.prisma.enrollment.createMany({
-      data: enrollData,
-      skipDuplicates: true,
-    });
-
-    // Seed attendance placeholders for this session
-    const attendanceData = allUsers.map((u) => ({
-      sessionId: session.id,
-      studentId: u.id,
-      method: 'AUTO_IMPORT' as unknown as AttendanceMethod,
-      status: 'NOT_ATTENDED' as unknown as AttendanceStatus,
-    }));
-    await this.prisma.attendance.createMany({
-      data: attendanceData,
-      skipDuplicates: true,
-    });
-
-    return session;
+  async createQuick(quickCreateSessionDto: QuickCreateSessionDto) {
+    const result = await this.sessionBuilderDirector.buildQuickSession(quickCreateSessionDto);
+    return result.session;
   }
 
 

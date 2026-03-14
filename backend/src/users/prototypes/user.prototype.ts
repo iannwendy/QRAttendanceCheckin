@@ -1,72 +1,107 @@
-/**
- * PROTOTYPE PATTERN - User Prototype for Batch Creation
- * 
- * Bối cảnh: Hệ thống cần tạo nhiều user sinh viên mẫu (100 sinh viên)
- * với các thuộc tính tương tự nhau nhưng khác nhau về studentCode.
- * 
- * Prototype pattern cho phép clone một object mẫu và customize các thuộc tính unique
- */
-
 import { Injectable } from '@nestjs/common';
+import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 
-export interface UserPrototype {
+export interface Cloneable<T> {
+  clone(): T;
+}
+
+export class UserPrototype implements Cloneable<UserPrototype> {
   email: string;
   passwordHash: string;
   fullName: string;
   studentCode: string;
-  role: 'STUDENT';
+  role: Role;
+
+  constructor() {
+    this.email = '';
+    this.passwordHash = '';
+    this.fullName = '';
+    this.studentCode = '';
+    this.role = Role.STUDENT;
+  }
+
+  clone(): UserPrototype {
+    return Object.assign(
+      Object.create(Object.getPrototypeOf(this)),
+      this,
+    );
+  }
+
+  withEmail(email: string): UserPrototype {
+    const next = this.clone();
+    next.email = email;
+    return next;
+  }
+
+  withFullName(fullName: string): UserPrototype {
+    const next = this.clone();
+    next.fullName = fullName;
+    return next;
+  }
+
+  withStudentCode(studentCode: string): UserPrototype {
+    const next = this.clone();
+    next.studentCode = studentCode;
+    return next;
+  }
+
+  withPasswordHash(passwordHash: string): UserPrototype {
+    const next = this.clone();
+    next.passwordHash = passwordHash;
+    return next;
+  }
+
+  withRole(role: Role): UserPrototype {
+    const next = this.clone();
+    next.role = role;
+    return next;
+  }
+
+  static studentTemplate(): UserPrototype {
+    return new UserPrototype()
+      .withRole(Role.STUDENT)
+      .withPasswordHash('');
+  }
+
+  static lecturerTemplate(): UserPrototype {
+    return new UserPrototype()
+      .withRole(Role.LECTURER)
+      .withPasswordHash('');
+  }
+
+  static adminTemplate(): UserPrototype {
+    return new UserPrototype()
+      .withRole(Role.ADMIN)
+      .withPasswordHash('');
+  }
+
+  toPrismaCreateInput(): Prisma.UserCreateManyInput {
+    return {
+      email: this.email,
+      passwordHash: this.passwordHash,
+      fullName: this.fullName,
+      studentCode: this.studentCode,
+      role: this.role,
+    };
+  }
 }
 
-/**
- * Prototype Manager - Quản lý các prototype user
- */
 @Injectable()
 export class UserPrototypeManager {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Tạo student prototype với các giá trị mặc định
-   */
-  createStudentPrototype(): UserPrototype {
-    return {
-      email: '',           // Sẽ được customize
-      passwordHash: '',   // Mặc định rỗng
-      fullName: '',       // Sẽ được customize
-      studentCode: '',   // Sẽ được customize
-      role: 'STUDENT',
-    };
-  }
-
-  /**
-   * Clone prototype và điền thông tin cụ thể
-   */
-  cloneStudentPrototype(
-    prototype: UserPrototype,
-    studentCode: string,
-    fullName?: string,
-  ): UserPrototype {
-    return {
-      ...prototype,
-      email: `${studentCode.toLowerCase()}@example.edu`,
-      fullName: fullName || `Sinh viên ${studentCode}`,
-      studentCode,
-    };
-  }
-
-  /**
-   * Tạo hàng loạt sinh viên từ danh sách mã
-   * Sử dụng Prototype pattern để tránh khởi tạo object mới cho mỗi sinh viên
-   */
   async createBatchStudents(studentCodes: string[]): Promise<number> {
-    const prototype = this.createStudentPrototype();
-    
-    // Clone và chuẩn bị dữ liệu
-    const userData = studentCodes.map(code => 
-      this.cloneStudentPrototype(prototype, code)
+    const template = UserPrototype.studentTemplate();
+
+    const userData = studentCodes.map((studentCode) =>
+      template
+        .withEmail(`${studentCode.toLowerCase()}@example.edu`)
+        .withFullName(`Sinh viên ${studentCode}`)
+        .withStudentCode(studentCode)
+        .toPrismaCreateInput(),
     );
 
-    // Batch create
     await this.prisma.user.createMany({
       data: userData,
       skipDuplicates: true,
@@ -75,9 +110,6 @@ export class UserPrototypeManager {
     return userData.length;
   }
 
-  /**
-   * Demo: Tạo 100 sinh viên mẫu (523H0001 - 523H0100)
-   */
   async createDemoStudents(): Promise<number> {
     const toPadded = (n: number) => n.toString().padStart(4, '0');
     const studentCodes = Array.from(

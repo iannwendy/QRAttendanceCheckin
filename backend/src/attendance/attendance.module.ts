@@ -4,6 +4,7 @@ import { AttendanceController } from './attendance.controller';
 import { SessionsModule } from '../sessions/sessions.module';
 import { EvidenceModule } from '../evidence/evidence.module';
 import {
+  ATTENDANCE_OBSERVERS,
   AttendanceLoggingObserver,
   AttendanceAnalyticsObserver,
   AttendanceSubject,
@@ -16,6 +17,14 @@ import {
     AttendanceService,
     AttendanceLoggingObserver,
     AttendanceAnalyticsObserver,
+    {
+      provide: ATTENDANCE_OBSERVERS,
+      useFactory: (
+        loggingObserver: AttendanceLoggingObserver,
+        analyticsObserver: AttendanceAnalyticsObserver,
+      ) => [loggingObserver, analyticsObserver],
+      inject: [AttendanceLoggingObserver, AttendanceAnalyticsObserver],
+    },
     AttendanceSubject,
   ],
 })

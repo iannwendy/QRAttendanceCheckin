@@ -49,8 +49,8 @@ Khi attendance status thay doi thi notify cho observers (logging, analytics).
 
 ### Trang thai hien tai
 - Da co AttendanceSubject + AttendanceLoggingObserver + AttendanceAnalyticsObserver.
-- AttendanceModule da register providers observer + subject.
-- AttendanceService da inject subject/observers va attach trong constructor.
+- AttendanceModule da register providers observer + subject, va gom observers qua token `ATTENDANCE_OBSERVERS`.
+- AttendanceService chi inject subject va publish event, khong con tu attach observer trong constructor.
 - Da goi subject.notify(...) sau cac diem thay doi status:
   - checkInQR (TOO_FAR/APPROVED create-update)
   - checkInOTP (PENDING)
@@ -62,7 +62,7 @@ Khi attendance status thay doi thi notify cho observers (logging, analytics).
 - Co console log cho approved/rejected/pending + analytics dem so luong.
 
 ### Luu y
-- oldStatus cho approve/reject hien dang de null (khong query status cu).
+- oldStatus cho approve/reject da duoc lay truoc khi update bang transaction.
 
 ## 3) Decorator Pattern (Cache)
 

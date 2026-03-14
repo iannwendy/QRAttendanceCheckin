@@ -10,8 +10,10 @@
  * Observer pattern giúp decoupling giữa subject (attendance) và các observers
  */
 
-import { Injectable } from '@nestjs/common';
-import { AttendanceStatus } from '@prisma/client';
+import { Inject, Injectable } from '@nestjs/common';
+import { AttendanceMethod, AttendanceStatus } from '@prisma/client';
+
+export const ATTENDANCE_OBSERVERS = 'ATTENDANCE_OBSERVERS';
 
 export interface AttendanceEvent {
   attendanceId: string;
@@ -19,7 +21,7 @@ export interface AttendanceEvent {
   sessionId: string;
   oldStatus: AttendanceStatus | null;
   newStatus: AttendanceStatus;
-  method: string;
+  method: AttendanceMethod;
   timestamp: Date;
 }
 
@@ -113,11 +115,19 @@ export class AttendanceAnalyticsObserver implements AttendanceObserver {
 export class AttendanceSubject {
   private observers: AttendanceObserver[] = [];
 
+  constructor(
+    @Inject(ATTENDANCE_OBSERVERS) observers: AttendanceObserver[] = [],
+  ) {
+    this.observers = [...new Set(observers)];
+  }
+
   /**
    * Đăng ký observer
    */
   attach(observer: AttendanceObserver): void {
-    this.observers.push(observer);
+    if (!this.observers.includes(observer)) {
+      this.observers.push(observer);
+    }
   }
 
   /**
@@ -134,26 +144,27 @@ export class AttendanceSubject {
    * Thông báo cho tất cả observers
    */
   async notify(event: AttendanceEvent): Promise<void> {
-    // Notify all observers
-    for (const observer of this.observers) {
-      try {
-        await observer.onAttendanceChange(event);
-        
-        switch (event.newStatus) {
-          case AttendanceStatus.APPROVED:
-            await observer.onAttendanceApproved(event);
-            break;
-          case AttendanceStatus.REJECTED:
-            await observer.onAttendanceRejected(event);
-            break;
-          case AttendanceStatus.PENDING:
-            await observer.onAttendancePending(event);
-            break;
+    await Promise.all(
+      this.observers.map(async (observer) => {
+        try {
+          await observer.onAttendanceChange(event);
+
+          switch (event.newStatus) {
+            case AttendanceStatus.APPROVED:
+              await observer.onAttendanceApproved(event);
+              break;
+            case AttendanceStatus.REJECTED:
+              await observer.onAttendanceRejected(event);
+              break;
+            case AttendanceStatus.PENDING:
+              await observer.onAttendancePending(event);
+              break;
+          }
+        } catch (error) {
+          console.error(`[ERROR] Observer notification failed:`, error);
         }
-      } catch (error) {
-        console.error(`[ERROR] Observer notification failed:`, error);
-      }
-    }
+      }),
+    );
   }
 }
 

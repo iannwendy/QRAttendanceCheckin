@@ -12,6 +12,7 @@ import { SessionsService } from './sessions.service';
 import { ConfigService } from '@nestjs/config';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { UpdateSessionDto } from './dto/update-session.dto';
+import { QuickCreateSessionDto } from './dto/quick-create-session.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -30,6 +31,13 @@ export class SessionsController {
   @Roles(Role.LECTURER, Role.ADMIN)
   async create(@Body() createSessionDto: CreateSessionDto) {
     return this.sessionsService.create(createSessionDto);
+  }
+
+  @Post('quick')
+  @UseGuards(RolesGuard)
+  @Roles(Role.LECTURER, Role.ADMIN)
+  async createQuick(@Body() quickCreateSessionDto: QuickCreateSessionDto) {
+    return this.sessionsService.createQuick(quickCreateSessionDto);
   }
 
   @Patch(':id')

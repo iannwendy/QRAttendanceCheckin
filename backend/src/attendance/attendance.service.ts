@@ -13,9 +13,8 @@ import { ConfigService } from '@nestjs/config';
 import { EvidenceService } from '../evidence/evidence.service';
 import { AttendanceMethod, AttendanceStatus } from '@prisma/client';
 import {
+  AttendanceEvent,
   AttendanceSubject,
-  AttendanceLoggingObserver,
-  AttendanceAnalyticsObserver,
 } from './observers/attendance-observer';
 import { Cached, invalidateCache } from '../common/decorators/cache-decorator';
 
@@ -46,12 +45,20 @@ export class AttendanceService {
     private evidenceService: EvidenceService,
     private configService: ConfigService,
     private subject: AttendanceSubject,
-    private loggingObserver: AttendanceLoggingObserver,
-    private analyticsObserver: AttendanceAnalyticsObserver,
+  ) {}
+
+  private async publishAttendanceEvent(
+    event: Omit<AttendanceEvent, 'timestamp'> & { timestamp?: Date },
   ) {
-    // Attach observers to subject
-    this.subject.attach(this.loggingObserver);
-    this.subject.attach(this.analyticsObserver);
+    await this.subject.notify({
+      ...event,
+      timestamp: event.timestamp ?? new Date(),
+    });
+  }
+
+  private invalidateAttendanceCaches() {
+    invalidateCache('AttendanceService:.*Report');
+    invalidateCache('AttendanceService:.*Analytics');
   }
 
   async checkInQR(studentId: string, checkInDto: CheckInQRDto) {
@@ -155,25 +162,21 @@ export class AttendanceService {
           where: { id: existing.id },
           data: {
             method: AttendanceMethod.QR_GPS,
-            status: 'TOO_FAR' as unknown as AttendanceStatus,
+            status: AttendanceStatus.TOO_FAR,
             lat: checkInDto.lat,
             lng: checkInDto.lng,
             accuracy: checkInDto.accuracy,
           },
         });
-        // Notify observers
-        await this.subject.notify({
+        await this.publishAttendanceEvent({
           attendanceId: updated.id,
           studentId,
           sessionId,
           oldStatus: existing.status,
-          newStatus: 'TOO_FAR' as unknown as AttendanceStatus,
-          method: 'QR_GPS',
-          timestamp: new Date(),
+          newStatus: AttendanceStatus.TOO_FAR,
+          method: AttendanceMethod.QR_GPS,
         });
-        // Invalidate cache
-        invalidateCache('AttendanceService:.*Report');
-        invalidateCache('AttendanceService:.*Analytics');
+        this.invalidateAttendanceCaches();
         return updated;
       } else {
         const created = await this.prisma.attendance.create({
@@ -181,25 +184,21 @@ export class AttendanceService {
             sessionId,
             studentId,
             method: AttendanceMethod.QR_GPS,
-            status: 'TOO_FAR' as unknown as AttendanceStatus,
+            status: AttendanceStatus.TOO_FAR,
             lat: checkInDto.lat,
             lng: checkInDto.lng,
             accuracy: checkInDto.accuracy,
           },
         });
-        // Notify observers
-        await this.subject.notify({
+        await this.publishAttendanceEvent({
           attendanceId: created.id,
           studentId,
           sessionId,
           oldStatus: null,
-          newStatus: 'TOO_FAR' as unknown as AttendanceStatus,
-          method: 'QR_GPS',
-          timestamp: new Date(),
+          newStatus: AttendanceStatus.TOO_FAR,
+          method: AttendanceMethod.QR_GPS,
         });
-        // Invalidate cache
-        invalidateCache('AttendanceService:.*Report');
-        invalidateCache('AttendanceService:.*Analytics');
+        this.invalidateAttendanceCaches();
         return created;
       }
     }
@@ -219,19 +218,15 @@ export class AttendanceService {
           accuracy: checkInDto.accuracy,
         },
       });
-      // Notify observers
-      await this.subject.notify({
+      await this.publishAttendanceEvent({
         attendanceId: updated.id,
         studentId,
         sessionId,
         oldStatus: existing.status,
         newStatus: AttendanceStatus.APPROVED,
-        method: 'QR_GPS',
-        timestamp: new Date(),
+        method: AttendanceMethod.QR_GPS,
       });
-      // Invalidate cache
-      invalidateCache('AttendanceService:.*Report');
-      invalidateCache('AttendanceService:.*Analytics');
+      this.invalidateAttendanceCaches();
       return updated;
     }
 
@@ -247,19 +242,15 @@ export class AttendanceService {
         accuracy: checkInDto.accuracy,
       },
     });
-    // Notify observers
-    await this.subject.notify({
+    await this.publishAttendanceEvent({
       attendanceId: created.id,
       studentId,
       sessionId,
       oldStatus: null,
       newStatus: AttendanceStatus.APPROVED,
-      method: 'QR_GPS',
-      timestamp: new Date(),
+      method: AttendanceMethod.QR_GPS,
     });
-    // Invalidate cache
-    invalidateCache('AttendanceService:.*Report');
-    invalidateCache('AttendanceService:.*Analytics');
+    this.invalidateAttendanceCaches();
     return created;
   }
 
@@ -367,20 +358,16 @@ export class AttendanceService {
       },
     });
 
-    // Notify observers
-    await this.subject.notify({
+    await this.publishAttendanceEvent({
       attendanceId: attendance.id,
       studentId,
       sessionId: session.id,
       oldStatus,
       newStatus: AttendanceStatus.PENDING,
-      method: 'OTP_PHOTO',
-      timestamp: new Date(),
+      method: AttendanceMethod.OTP_PHOTO,
     });
 
-    // Invalidate cache
-    invalidateCache('AttendanceService:.*Report');
-    invalidateCache('AttendanceService:.*Analytics');
+    this.invalidateAttendanceCaches();
 
     return attendance;
   }
@@ -412,46 +399,52 @@ export class AttendanceService {
   }
 
   async approveAttendance(attendanceId: string) {
-    const att = await this.prisma.attendance.update({
-      where: { id: attendanceId },
-      data: { status: AttendanceStatus.APPROVED },
-      include: { student: true, evidence: true },
-    });
-    // Notify observers
-    await this.subject.notify({
+    const [existing, att] = await this.prisma.$transaction([
+      this.prisma.attendance.findUnique({
+        where: { id: attendanceId },
+        select: { status: true },
+      }),
+      this.prisma.attendance.update({
+        where: { id: attendanceId },
+        data: { status: AttendanceStatus.APPROVED },
+        include: { student: true, evidence: true },
+      }),
+    ]);
+
+    await this.publishAttendanceEvent({
       attendanceId: att.id,
       studentId: att.studentId,
       sessionId: att.sessionId,
-      oldStatus: null,
+      oldStatus: existing?.status ?? null,
       newStatus: AttendanceStatus.APPROVED,
       method: att.method,
-      timestamp: new Date(),
     });
-    // Invalidate cache
-    invalidateCache('AttendanceService:.*Report');
-    invalidateCache('AttendanceService:.*Analytics');
+    this.invalidateAttendanceCaches();
     return att;
   }
 
   async rejectAttendance(attendanceId: string) {
-    const att = await this.prisma.attendance.update({
-      where: { id: attendanceId },
-      data: { status: AttendanceStatus.REJECTED },
-      include: { student: true, evidence: true },
-    });
-    // Notify observers
-    await this.subject.notify({
+    const [existing, att] = await this.prisma.$transaction([
+      this.prisma.attendance.findUnique({
+        where: { id: attendanceId },
+        select: { status: true },
+      }),
+      this.prisma.attendance.update({
+        where: { id: attendanceId },
+        data: { status: AttendanceStatus.REJECTED },
+        include: { student: true, evidence: true },
+      }),
+    ]);
+
+    await this.publishAttendanceEvent({
       attendanceId: att.id,
       studentId: att.studentId,
       sessionId: att.sessionId,
-      oldStatus: null,
+      oldStatus: existing?.status ?? null,
       newStatus: AttendanceStatus.REJECTED,
       method: att.method,
-      timestamp: new Date(),
     });
-    // Invalidate cache
-    invalidateCache('AttendanceService:.*Report');
-    invalidateCache('AttendanceService:.*Analytics');
+    this.invalidateAttendanceCaches();
     return att;
   }
 
