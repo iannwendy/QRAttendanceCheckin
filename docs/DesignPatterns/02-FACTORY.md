@@ -13,7 +13,6 @@ Trong hệ thống QR Attendance, khi điểm danh có nhiều trạng thái kh�
 - **PENDING** - Chờ duyệt
 - **REJECTED** - Bị từ chối
 - **TOO_FAR** - Cách quá xa điểm danh
-- **ALREADY_CHECKED** - Đã điểm danh rồi
 
 Mỗi trạng thái cần trả về response với cấu trúc khác nhau (message, metadata, timestamp...)
 
@@ -26,7 +25,7 @@ Mỗi trạng thái cần trả về response với cấu trúc khác nhau (mess
 ```typescript
 async checkInQR(studentId: string, dto: CheckInQRDto) {
   const result = await this.processCheckInLogic(...);
-  
+
   // Tạo response thủ công cho từng trạng thái
   if (result.status === 'APPROVED') {
     return {
@@ -59,7 +58,7 @@ async checkInQR(studentId: string, dto: CheckInQRDto) {
       reason: result.reason
     };
   }
-  
+
   // Lặp lại logic tạo response...
 }
 
@@ -68,7 +67,7 @@ async approveAttendance(id: string, lecturerId: string) {
     where: { id },
     data: { status: 'APPROVED', approvedBy: lecturerId, approvedAt: new Date() }
   });
-  
+
   return {
     success: true,
     message: 'Duyệt điểm danh thành công',
@@ -83,7 +82,7 @@ async rejectAttendance(id: string, reason: string) {
     where: { id },
     data: { status: 'REJECTED', rejectReason: reason }
   });
-  
+
   return {
     success: false,
     message: 'Từ chối điểm danh',
@@ -101,112 +100,91 @@ async rejectAttendance(id: string, reason: string) {
 **File:** `src/attendance/factories/attendance-response.factory.ts`
 
 ```typescript
-import { Injectable } from '@nestjs/common';
+import { AttendanceStatus, AttendanceMethod } from '@prisma/client';
 
-export enum AttendanceStatus {
-  APPROVED = 'APPROVED',
-  PENDING = 'PENDING',
-  REJECTED = 'REJECTED',
-  TOO_FAR = 'TOO_FAR',
-  ALREADY_CHECKED = 'ALREADY_CHECKED',
-  NOT_ENROLLED = 'NOT_ENROLLED'
+export interface AttendanceResponse {
+  success: boolean;
+  status: AttendanceStatus;
+  message: string;
+  attendanceId?: string;
+  method?: AttendanceMethod;
+  timestamp?: Date;
 }
 
+/**
+ * Interface cho các Attendance Response Builder
+ */
 export interface AttendanceResponseBuilder {
   build(data: any): AttendanceResponse;
 }
 
-export interface AttendanceResponse {
-  success: boolean;
-  message: string;
-  status: AttendanceStatus;
-  timestamp?: Date;
-  data?: any;
-}
-
-// ============ APPROVED Builder ============
+/**
+ * Builder cho trạng thái APPROVED
+ */
 export class ApprovedAttendanceBuilder implements AttendanceResponseBuilder {
   build(data: any): AttendanceResponse {
     return {
       success: true,
-      message: data.message || 'Điểm danh thành công',
       status: AttendanceStatus.APPROVED,
-      timestamp: new Date(),
-      data: {
-        attendance: data.attendance,
-        checkInTime: data.attendance?.checkInTime
-      }
+      message: 'Điểm danh thành công',
+      attendanceId: data.id,
+      method: data.method,
+      timestamp: data.updatedAt || new Date(),
     };
   }
 }
 
-// ============ TOO_FAR Builder ============
-export class TooFarAttendanceBuilder implements AttendanceResponseBuilder {
-  build(data: any): AttendanceResponse {
-    return {
-      success: false,
-      message: `Bạn đang cách điểm danh ${data.distance}m (tối đa ${data.maxDistance}m)`,
-      status: AttendanceStatus.TOO_FAR,
-      timestamp: new Date(),
-      data: {
-        distance: data.distance,
-        maxDistance: data.maxDistance,
-        requiredAction: 'Di chuyển gần hơn để điểm danh'
-      }
-    };
-  }
-}
-
-// ============ ALREADY_CHECKED Builder ============
-export class AlreadyCheckedAttendanceBuilder implements AttendanceResponseBuilder {
-  build(data: any): AttendanceResponse {
-    return {
-      success: true,
-      message: 'Bạn đã điểm danh trước đó',
-      status: AttendanceStatus.ALREADY_CHECKED,
-      timestamp: new Date(),
-      data: {
-        checkInTime: data.checkInTime,
-        originalCheckInTime: data.originalCheckInTime
-      }
-    };
-  }
-}
-
-// ============ REJECTED Builder ============
-export class RejectedAttendanceBuilder implements AttendanceResponseBuilder {
-  build(data: any): AttendanceResponse {
-    return {
-      success: false,
-      message: data.reason || 'Điểm danh bị từ chối',
-      status: AttendanceStatus.REJECTED,
-      timestamp: new Date(),
-      data: {
-        reason: data.reason,
-        attendance: data.attendance
-      }
-    };
-  }
-}
-
-// ============ PENDING Builder ============
+/**
+ * Builder cho trạng thái PENDING
+ */
 export class PendingAttendanceBuilder implements AttendanceResponseBuilder {
   build(data: any): AttendanceResponse {
     return {
       success: true,
-      message: 'Điểm danh chờ giảng viên duyệt',
       status: AttendanceStatus.PENDING,
-      timestamp: new Date(),
-      data: {
-        attendance: data.attendance,
-        requiresApproval: true
-      }
+      message: 'Điểm danh thành công, chờ giảng viên duyệt',
+      attendanceId: data.id,
+      method: data.method,
+      timestamp: data.updatedAt || new Date(),
     };
   }
 }
 
-// ============ Factory Class ============
-@Injectable()
+/**
+ * Builder cho trạng thái REJECTED
+ */
+export class RejectedAttendanceBuilder implements AttendanceResponseBuilder {
+  build(data: any): AttendanceResponse {
+    return {
+      success: false,
+      status: AttendanceStatus.REJECTED,
+      message: 'Điểm danh bị từ chối',
+      attendanceId: data.id,
+      method: data.method,
+      timestamp: data.updatedAt || new Date(),
+    };
+  }
+}
+
+/**
+ * Builder cho trạng thái TOO_FAR
+ */
+export class TooFarAttendanceBuilder implements AttendanceResponseBuilder {
+  build(data: any): AttendanceResponse {
+    return {
+      success: false,
+      status: AttendanceStatus.TOO_FAR as any,
+      message: 'Bạn đang ở ngoài vùng điểm danh',
+      attendanceId: data.id,
+      method: data.method,
+      timestamp: data.updatedAt || new Date(),
+    };
+  }
+}
+
+/**
+ * Factory tạo AttendanceResponse phù hợp với từng loại status
+ */
 export class AttendanceResponseFactory {
   private static builders: Map<AttendanceStatus, AttendanceResponseBuilder> =
     new Map([
@@ -214,52 +192,75 @@ export class AttendanceResponseFactory {
       [AttendanceStatus.PENDING, new PendingAttendanceBuilder()],
       [AttendanceStatus.REJECTED, new RejectedAttendanceBuilder()],
       [AttendanceStatus.TOO_FAR, new TooFarAttendanceBuilder()],
-      [AttendanceStatus.ALREADY_CHECKED, new AlreadyCheckedAttendanceBuilder()],
     ]);
 
+  /**
+   * Tạo response dựa trên status
+   */
   static create(status: AttendanceStatus, data: any): AttendanceResponse {
-    const builder = this.builders.get(status);
+    const builder = AttendanceResponseFactory.builders.get(status);
+
     if (!builder) {
-      throw new Error(`Unknown attendance status: ${status}`);
+      return {
+        success: false,
+        status,
+        message: 'Trạng thái không xác định',
+        attendanceId: data?.id,
+      };
     }
+
     return builder.build(data);
   }
 
-  // Thêm status mới dễ dàng
-  static register(status: AttendanceStatus, builder: AttendanceResponseBuilder) {
-    this.builders.set(status, builder);
+  /**
+   * Đăng ký builder mới cho một status
+   */
+  static registerBuilder(
+    status: AttendanceStatus,
+    builder: AttendanceResponseBuilder
+  ): void {
+    AttendanceResponseFactory.builders.set(status, builder);
   }
 }
 ```
 
----
-
-## 5. Cách sử dụng
+**Cách sử dụng trong AttendanceService:**
 
 ```typescript
-// Trong AttendanceService
-import { AttendanceResponseFactory, AttendanceStatus } from '../factories/attendance-response.factory';
+import { AttendanceResponseFactory } from './factories/attendance-response.factory';
 
-async checkInQR(studentId: string, dto: CheckInQRDto) {
-  const result = await this.processCheckInLogic(studentId, dto);
-  
-  return AttendanceResponseFactory.create(result.status, result);
+async checkInQR(studentId: string, checkInDto: CheckInQRDto) {
+  const checkInResult = await this.checkInFacade.completeCheckIn(...);
+
+  // Use Factory to create response
+  return AttendanceResponseFactory.create(
+    checkInResult.attendance?.status || checkInResult.status,
+    checkInResult.attendance || checkInResult
+  );
 }
 
-async approveAttendance(id: string, lecturerId: string) {
-  const attendance = await this.prisma.attendance.update({...});
-  return AttendanceResponseFactory.create(AttendanceStatus.APPROVED, { attendance });
+async approveAttendance(id: string) {
+  const attendance = await this.prisma.attendance.update({
+    where: { id },
+    data: { status: AttendanceStatus.APPROVED }
+  });
+
+  return AttendanceResponseFactory.create(attendance.status, attendance);
 }
 
-async rejectAttendance(id: string, reason: string) {
-  const attendance = await this.prisma.attendance.update({...});
-  return AttendanceResponseFactory.create(AttendanceStatus.REJECTED, { attendance, reason });
+async rejectAttendance(id: string) {
+  const attendance = await this.prisma.attendance.update({
+    where: { id },
+    data: { status: AttendanceStatus.REJECTED }
+  });
+
+  return AttendanceResponseFactory.create(attendance.status, attendance);
 }
 ```
 
 ---
 
-## 6. Giải thích tại sao áp dụng Factory
+## 5. Giải thích tại sao áp dụng Factory
 
 ### Vấn đề gặp phải:
 - Logic tạo response lặp lại nhiều lần trong các method
@@ -273,7 +274,7 @@ async rejectAttendance(id: string, reason: string) {
 
 ---
 
-## 7. Lợi ích của Factory Pattern
+## 6. Lợi ích của Factory Pattern
 
 | Tiêu chí | Trước khi dùng Factory | Sau khi dùng Factory |
 |----------|----------------------|---------------------|
@@ -298,40 +299,63 @@ async rejectAttendance(id: string, reason: string) {
 
 ---
 
-## 8. Sơ đồ Class
+## 7. Sơ đồ Class
 
 ```mermaid
 classDiagram
+    class AttendanceController {
+        +checkInQR()
+        +approve()
+        +reject()
+    }
+
+    class AttendanceService {
+        -checkInFacade: AttendanceCheckInFacade
+        +checkInQR()
+        +approveAttendance()
+        +rejectAttendance()
+    }
+
     class AttendanceResponseFactory {
         +static builders: Map~AttendanceStatus, AttendanceResponseBuilder~
         +static create(status, data): AttendanceResponse
-        +static register(status, builder)
+        +static registerBuilder(status, builder)
     }
-    
+
     class <<interface>> AttendanceResponseBuilder {
         +build(data): AttendanceResponse
     }
-    
+
     AttendanceResponseFactory --> AttendanceResponseBuilder
-    
+
     AttendanceResponseBuilder <|.. ApprovedAttendanceBuilder
     AttendanceResponseBuilder <|.. PendingAttendanceBuilder
     AttendanceResponseBuilder <|.. RejectedAttendanceBuilder
     AttendanceResponseBuilder <|.. TooFarAttendanceBuilder
-    AttendanceResponseBuilder <|.. AlreadyCheckedAttendanceBuilder
-    
+
     class ApprovedAttendanceBuilder {
         +build(data): AttendanceResponse
     }
-    
+
+    class PendingAttendanceBuilder {
+        +build(data): AttendanceResponse
+    }
+
+    class RejectedAttendanceBuilder {
+        +build(data): AttendanceResponse
+    }
+
     class TooFarAttendanceBuilder {
         +build(data): AttendanceResponse
     }
+
+    AttendanceController --> AttendanceService
+    AttendanceService --> AttendanceResponseFactory
 ```
 
 ---
 
-## 9. Kết luận
+## 8. Kết luận
 
 Factory Pattern giúp quản lý việc tạo các đối tượng phức tạp một cách có tổ chức:
 

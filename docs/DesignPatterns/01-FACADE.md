@@ -61,7 +61,7 @@ async checkInQR(studentId: string, dto: CheckInQRDto) {
 
   // Bước 4: Tính khoảng cách GPS
   const distance = this.calculateDistance(
-    dto.latitude, dto.longitude,
+    dto.lat, dto.lng,
     session.latitude, session.longitude
   );
   const isInGeofence = distance <= session.geofenceRadius;
@@ -105,93 +105,182 @@ async checkInQR(studentId: string, dto: CheckInQRDto) {
 **File:** `src/attendance/facades/attendance-checkin.facade.ts`
 
 ```typescript
-import { Injectable } from '@nestjs/common';
-import { QRTokenAdapterManager } from '../../common/utils/qr-token-adapter';
-import { SessionsService } from '../../sessions/sessions.service';
-import { EnrollmentsService } from '../../enrollments/enrollments.service';
-import { PrismaService } from '../../prisma/prisma.service';
+import { Injectable, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../../common/prisma/prisma.service';
+import { QRTokenService, QRTokenPayload } from '../../common/utils/qr-token.util';
 import { haversineDistance } from '../../common/utils/geography.util';
+import { AttendanceMethod, AttendanceStatus } from '@prisma/client';
 
 export interface CheckInResult {
   success: boolean;
-  status: 'APPROVED' | 'TOO_FAR' | 'ALREADY_CHECKED' | 'NOT_ENROLLED';
+  status: AttendanceStatus;
   message: string;
-  distance?: number;
   attendance?: any;
 }
 
 @Injectable()
 export class AttendanceCheckInFacade {
   constructor(
-    private qrTokenAdapter: QRTokenAdapterManager,
-    private sessionsService: SessionsService,
-    private enrollmentsService: EnrollmentsService,
     private prisma: PrismaService,
+    private qrTokenService: QRTokenService,
   ) {}
 
-  async processCheckIn(qrToken: string, studentId: string): Promise<CheckInResult> {
-    // Bước 1: Parse QR Token
-    const qrPayload = this.qrTokenAdapter.parse(qrToken);
+  /**
+   * Parse QR token với nhiều định dạng
+   */
+  private parseQRToken(qrToken: string): QRTokenPayload | null {
+    // Thử JWT verify
+    let qrPayload = this.qrTokenService.verifyQRToken(qrToken);
 
-    // Bước 2: Get Session
-    const session = await this.sessionsService.findById(qrPayload.sessionId);
-
-    // Bước 3: Check Enrollment
-    const isEnrolled = await this.enrollmentsService.isStudentEnrolled(studentId, session.classId);
-    if (!isEnrolled) {
-      return { success: false, status: 'NOT_ENROLLED', message: 'Bạn chưa đăng ký lớp học này' };
+    // Thử parse JSON
+    if (!qrPayload) {
+      try {
+        const parsed = JSON.parse(qrToken);
+        if (parsed.sessionId && parsed.nonce) {
+          const now = Math.floor(Date.now() / 1000);
+          if (parsed.exp && parsed.exp >= now) {
+            qrPayload = parsed;
+          }
+        }
+      } catch { /* Ignore */ }
     }
 
-    return { success: true, status: 'ENROLLED', message: 'Đủ điều kiện điểm danh' };
+    // Fallback: decode không verify
+    if (!qrPayload) {
+      try {
+        const parts = qrToken.split('.');
+        if (parts.length === 3) {
+          const json = Buffer.from(
+            parts[1].replace(/-/g, '+').replace(/_/g, '/'),
+            'base64',
+          ).toString('utf8');
+          const decoded = JSON.parse(json);
+          const now = Math.floor(Date.now() / 1000);
+          if (decoded && decoded.sessionId && decoded.exp && decoded.exp >= now) {
+            qrPayload = decoded;
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
+    return qrPayload;
   }
 
+  /**
+   * Lấy session từ database
+   */
+  private async getSession(sessionId: string) {
+    return this.prisma.session.findUnique({
+      where: { id: sessionId },
+      include: {
+        class: { include: { students: true } },
+      },
+    });
+  }
+
+  /**
+   * Check-in hoàn chỉnh với studentId
+   */
   async completeCheckIn(
     studentId: string,
     qrToken: string,
-    latitude: number,
-    longitude: number
+    lat: number,
+    lng: number,
+    accuracy?: number,
   ): Promise<CheckInResult> {
-    const qrPayload = this.qrTokenAdapter.parse(qrToken);
-    const session = await this.sessionsService.findById(qrPayload.sessionId);
-    
-    // Tính khoảng cách GPS
-    const distance = haversineDistance(
-      latitude, longitude,
-      session.latitude, session.longitude
+    // Parse và lấy session
+    const qrPayload = this.parseQRToken(qrToken);
+    if (!qrPayload) {
+      throw new BadRequestException('QR token không hợp lệ hoặc đã hết hạn');
+    }
+
+    const session = await this.getSession(qrPayload.sessionId);
+    if (!session) {
+      throw new BadRequestException('Buổi học không tồn tại');
+    }
+
+    // Kiểm tra enrollment
+    const isEnrolled = session.class.students.some(
+      (s) => s.studentId === studentId,
     );
+    if (!isEnrolled) {
+      throw new BadRequestException('Bạn chưa đăng ký lớp này');
+    }
+
+    // Tính khoảng cách
+    const distance = haversineDistance(
+      lat, lng,
+      session.latitude, session.longitude,
+    );
+
     const isInGeofence = distance <= session.geofenceRadius;
 
-    if (!isInGeofence) {
-      return {
-        success: false,
-        status: 'TOO_FAR',
-        message: `Bạn đang cách điểm danh ${Math.round(distance)}m`,
-        distance: Math.round(distance)
-      };
-    }
-
-    // Kiểm tra đã điểm danh chưa
-    const existingAttendance = await this.prisma.attendance.findFirst({
-      where: { studentId, sessionId: session.id }
+    // Kiểm tra attendance hiện có
+    const existing = await this.prisma.attendance.findUnique({
+      where: {
+        sessionId_studentId: { sessionId: session.id, studentId },
+      },
     });
 
-    if (existingAttendance) {
-      return { success: true, status: 'ALREADY_CHECKED', message: 'Đã điểm danh trước đó' };
-    }
-
-    // Tạo bản ghi điểm danh
-    const attendance = await this.prisma.attendance.create({
-      data: {
-        studentId,
-        sessionId: session.id,
-        status: 'APPROVED',
-        checkInTime: new Date(),
-        method: 'QR'
+    // Tạo hoặc cập nhật attendance
+    let attendance;
+    if (existing) {
+      if (existing.status === AttendanceStatus.APPROVED) {
+        return { success: true, status: existing.status, message: 'Đã điểm danh trước đó', attendance: existing };
       }
-    });
 
-    return { success: true, status: 'APPROVED', message: 'Điểm danh thành công', attendance };
+      attendance = await this.prisma.attendance.update({
+        where: { id: existing.id },
+        data: {
+          method: AttendanceMethod.QR_GPS,
+          status: isInGeofence ? AttendanceStatus.APPROVED : AttendanceStatus.TOO_FAR,
+          lat, lng, accuracy,
+        },
+      });
+    } else {
+      attendance = await this.prisma.attendance.create({
+        data: {
+          sessionId: session.id, studentId,
+          method: AttendanceMethod.QR_GPS,
+          status: isInGeofence ? AttendanceStatus.APPROVED : AttendanceStatus.TOO_FAR,
+          lat, lng, accuracy,
+        },
+      });
+    }
+
+    return {
+      success: isInGeofence,
+      status: attendance.status,
+      message: isInGeofence ? 'Điểm danh thành công' : 'Bạn đang ở ngoài vùng điểm danh',
+      attendance,
+    };
   }
+}
+```
+
+**Cách sử dụng trong AttendanceService:**
+
+```typescript
+async checkInQR(studentId: string, checkInDto: CheckInQRDto) {
+  // Use Facade to process check-in
+  const checkInResult = await this.checkInFacade.completeCheckIn(
+    studentId,
+    checkInDto.qrToken,
+    checkInDto.lat,
+    checkInDto.lng,
+    checkInDto.accuracy,
+  );
+
+  // Publish observer event (nếu có)
+  if (checkInResult.attendance) {
+    await this.publishAttendanceEvent({...});
+  }
+
+  // Use Factory to create response (xem Factory Pattern)
+  return AttendanceResponseFactory.create(
+    checkInResult.attendance?.status || checkInResult.status,
+    checkInResult.attendance || { status: checkInResult.status, message: checkInResult.message },
+  );
 }
 ```
 
@@ -225,7 +314,7 @@ export class AttendanceCheckInFacade {
 ### Các lợi ích cụ thể:
 
 1. **Giảm độ phức tạp cho Client**
-   - Client chỉ cần gọi `facade.processCheckIn()` thay vì gọi nhiều service
+   - Client chỉ cần gọi `facade.completeCheckIn()` thay vì gọi nhiều service
 
 2. **Tách biệt trách nhiệm**
    - Facade không chứa logic nghiệp vụ, chỉ orchestrate các bước
@@ -242,36 +331,42 @@ export class AttendanceCheckInFacade {
 
 ```mermaid
 classDiagram
-    class Client {
-        +checkIn()
+    class AttendanceController {
+        +checkInQR()
     }
-    
+
+    class AttendanceService {
+        -checkInFacade: AttendanceCheckInFacade
+        +checkInQR()
+    }
+
     class AttendanceCheckInFacade {
-        +processCheckIn()
+        -prisma: PrismaService
+        -qrTokenService: QRTokenService
         +completeCheckIn()
+        -parseQRToken()
+        -getSession()
     }
-    
-    class QRTokenAdapterManager {
-        +parse()
+
+    class QRTokenService {
+        +verifyQRToken()
     }
-    
-    class SessionsService {
-        +findById()
-    }
-    
-    class EnrollmentsService {
-        +isStudentEnrolled()
-    }
-    
+
     class PrismaService {
+        +session.findUnique()
         +attendance.create()
+        +attendance.update()
     }
-    
-    Client --> AttendanceCheckInFacade
-    AttendanceCheckInFacade --> QRTokenAdapterManager
-    AttendanceCheckInFacade --> SessionsService
-    AttendanceCheckInFacade --> EnrollmentsService
+
+    class AttendanceResponseFactory {
+        +create()
+    }
+
+    AttendanceController --> AttendanceService
+    AttendanceService --> AttendanceCheckInFacade
+    AttendanceCheckInFacade --> QRTokenService
     AttendanceCheckInFacade --> PrismaService
+    AttendanceService --> AttendanceResponseFactory
 ```
 
 ---

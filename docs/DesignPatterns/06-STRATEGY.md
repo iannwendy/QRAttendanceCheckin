@@ -8,13 +8,12 @@
 
 ## 2. Bối cảnh áp dụng
 
-Trong hệ thống QR Attendance, có nhiều cách để xác thực người dùng:
-- **Local Auth** - Đăng nhập bằng email/password
-- **JWT Auth** - Xác thực bằng JWT token
-- **OAuth** - Đăng nhập bằng Google, Facebook
-- **SSO** - Single Sign-On cho trường
+Trong hệ thống QR Attendance, có nhiều loại người dùng đăng nhập:
+- **ADMIN** - Đăng nhập bằng username `admin`
+- **LECTURER** - Đăng nhập bằng username `lecturer`
+- **STUDENT** - Đăng nhập bằng MSSV (ví dụ: `523H0001`)
 
-Mỗi cách xác thực có logic khác nhau, cần một cơ chế để dễ dàng chuyển đổi giữa các cách này.
+Mỗi loại có logic xác thực khác nhau, cần một cơ chế để dễ dàng chuyển đổi giữa các cách này.
 
 ---
 
@@ -25,53 +24,45 @@ Mỗi cách xác thực có logic khác nhau, cần một cơ chế để dễ d
 ```typescript
 @Injectable()
 export class AuthService {
-  async validateUser(email: string, password: string): Promise<User> {
-    const user = await this.prisma.user.findUnique({ where: { email } });
-    if (user && await bcrypt.compare(password, user.password)) {
-      return user;
-    }
-    return null;
-  }
+  constructor(
+    private usersService: UsersService,
+    private jwtService: JwtService,
+  ) {}
 
-  async login(dto: LoginDto) {
-    const user = await this.validateUser(dto.email, dto.password);
-    if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+  async login(username: string, password: string) {
+    if (password !== 'pass123') {
+      throw new UnauthorizedException('Sai mật khẩu');
     }
-    
-    // Generate JWT
+
+    let user = null as any;
+    const lower = (username || '').trim().toLowerCase();
+
+    // Logic if/else lồng nhau cho từng loại user
+    if (lower === 'admin') {
+      user = await this.usersService.findByRole('ADMIN');
+    } else if (lower === 'lecturer') {
+      user = await this.usersService.findByRole('LECTURER');
+    } else {
+      // Assume MSSV
+      const code = username.trim().toUpperCase();
+      user = await this.usersService.findByStudentCode(code);
+    }
+
+    if (!user) {
+      throw new UnauthorizedException('Tài khoản không tồn tại');
+    }
+
     const payload = { sub: user.id, email: user.email, role: user.role };
     return {
-      access_token: this.jwtService.sign(payload),
-      user
+      accessToken: this.jwtService.sign(payload),
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        studentCode: user.studentCode,
+        role: user.role,
+      },
     };
-  }
-
-  // Xử lý JWT auth
-  async validateToken(token: string): Promise<User> {
-    try {
-      const payload = this.jwtService.verify(token);
-      const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
-      return user;
-    } catch {
-      throw new UnauthorizedException('Invalid token');
-    }
-  }
-
-  // Xử lý OAuth (lồng trong cùng service - vi phạm SRP)
-  async handleOAuthCallback(provider: string, profile: any) {
-    let user = await this.prisma.user.findUnique({ 
-      where: { email: profile.email } 
-    });
-    
-    if (!user) {
-      user = await this.prisma.user.create({
-        data: { email: profile.email, role: 'STUDENT', isActive: true }
-      });
-    }
-    
-    const payload = { sub: user.id, email: user.email };
-    return { access_token: this.jwtService.sign(payload), user };
   }
 }
 ```
@@ -84,141 +75,170 @@ export class AuthService {
 
 ```typescript
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { User } from '@prisma/client';
+import { UsersService } from '../../users/users.service';
 
-// ============ Strategy Interface ============
+export interface AuthResult {
+  user: any;
+  userType: 'ADMIN' | 'LECTURER' | 'STUDENT';
+}
+
+/**
+ * Interface cho các Authentication Strategy
+ */
 export interface AuthStrategy {
-  authenticate(credentials: any): Promise<User>;
-  supports(credentials: any): boolean;
+  getName(): string;
+  canHandle(username: string): boolean;
+  authenticate(username: string): Promise<AuthResult>;
 }
 
-// ============ Local Strategy (Email/Password) ============
+/**
+ * Admin Authentication Strategy
+ */
 @Injectable()
-export class LocalAuthStrategy implements AuthStrategy {
-  constructor(
-    private prisma: PrismaService,
-    private bcrypt: any
-  ) {}
+export class AdminAuthStrategy implements AuthStrategy {
+  constructor(private usersService: UsersService) {}
 
-  supports(credentials: any): boolean {
-    return credentials.email && credentials.password;
+  getName(): string { return 'AdminAuthStrategy'; }
+
+  canHandle(username: string): boolean {
+    return username.trim().toLowerCase() === 'admin';
   }
 
-  async authenticate(credentials: { email: string; password: string }): Promise<User> {
-    const user = await this.prisma.user.findUnique({ 
-      where: { email: credentials.email } 
-    });
-    
-    if (!user || !await this.bcrypt.compare(credentials.password, user.password)) {
-      throw new UnauthorizedException('Invalid email or password');
-    }
-    
-    return user;
-  }
-}
-
-// ============ JWT Strategy ============
-@Injectable()
-export class JwtAuthStrategy implements AuthStrategy {
-  constructor(
-    private prisma: PrismaService,
-    private jwtService: JwtService
-  ) {}
-
-  supports(credentials: any): boolean {
-    return credentials.token && !credentials.email;
-  }
-
-  async authenticate(credentials: { token: string }): Promise<User> {
-    try {
-      const payload = this.jwtService.verify(credentials.token);
-      const user = await this.prisma.user.findUnique({ 
-        where: { id: payload.sub } 
-      });
-      
-      if (!user) {
-        throw new UnauthorizedException('User not found');
-      }
-      
-      return user;
-    } catch (error) {
-      throw new UnauthorizedException('Invalid token');
-    }
-  }
-}
-
-// ============ OAuth Strategy ============
-@Injectable()
-export class OAuthStrategy implements AuthStrategy {
-  constructor(private prisma: PrismaService) {}
-
-  supports(credentials: any): boolean {
-    return credentials.provider && credentials.profile;
-  }
-
-  async authenticate(credentials: { provider: string; profile: any }): Promise<User> {
-    const { email, name, picture } = credentials.profile;
-    
-    let user = await this.prisma.user.findUnique({ where: { email } });
-    
+  async authenticate(username: string): Promise<AuthResult> {
+    const user = await this.usersService.findByRole('ADMIN');
     if (!user) {
-      user = await this.prisma.user.create({
-        data: {
-          email,
-          role: 'STUDENT',
-          isActive: true,
-          oauthProvider: credentials.provider,
-          profile: {
-            create: {
-              firstName: name?.givenName || '',
-              lastName: name?.familyName || '',
-              avatar: picture || ''
-            }
-          }
-        }
-      });
+      throw new UnauthorizedException('Tài khoản admin không tồn tại');
     }
-    
-    return user;
+    return { user, userType: 'ADMIN' };
   }
 }
 
-// ============ Authenticator (Context) ============
+/**
+ * Lecturer Authentication Strategy
+ */
 @Injectable()
-export class Authenticator {
+export class LecturerAuthStrategy implements AuthStrategy {
+  constructor(private usersService: UsersService) {}
+
+  getName(): string { return 'LecturerAuthStrategy'; }
+
+  canHandle(username: string): boolean {
+    return username.trim().toLowerCase() === 'lecturer';
+  }
+
+  async authenticate(username: string): Promise<AuthResult> {
+    const user = await this.usersService.findByRole('LECTURER');
+    if (!user) {
+      throw new UnauthorizedException('Tài khoản giảng viên không tồn tại');
+    }
+    return { user, userType: 'LECTURER' };
+  }
+}
+
+/**
+ * Student Authentication Strategy (by MSSV)
+ */
+@Injectable()
+export class StudentAuthStrategy implements AuthStrategy {
+  constructor(private usersService: UsersService) {}
+
+  getName(): string { return 'StudentAuthStrategy'; }
+
+  canHandle(username: string): boolean {
+    const trimmed = username.trim().toUpperCase();
+    return /^523H\d{4}$/.test(trimmed);
+  }
+
+  async authenticate(username: string): Promise<AuthResult> {
+    const studentCode = username.trim().toUpperCase();
+    const user = await this.usersService.findByStudentCode(studentCode);
+    if (!user) {
+      throw new UnauthorizedException('Sinh viên không tồn tại');
+    }
+    return { user, userType: 'STUDENT' };
+  }
+}
+
+/**
+ * Authentication Context - Quản lý các strategy
+ */
+@Injectable()
+export class AuthStrategyContext {
   private strategies: AuthStrategy[] = [];
 
   constructor(
-    private localStrategy: LocalAuthStrategy,
-    private jwtStrategy: JwtAuthStrategy,
-    private oauthStrategy: OAuthStrategy
+    adminStrategy: AdminAuthStrategy,
+    lecturerStrategy: LecturerAuthStrategy,
+    studentStrategy: StudentAuthStrategy,
   ) {
-    // Đăng ký tất cả strategies
-    this.strategies.push(localStrategy, jwtStrategy, oauthStrategy);
+    // Thứ tự ưu tiên: Admin -> Lecturer -> Student
+    this.strategies = [adminStrategy, lecturerStrategy, studentStrategy];
   }
 
   addStrategy(strategy: AuthStrategy): void {
     this.strategies.push(strategy);
   }
 
-  async authenticate(credentials: any): Promise<User> {
+  async authenticate(username: string): Promise<AuthResult> {
     for (const strategy of this.strategies) {
-      if (strategy.supports(credentials)) {
-        return await strategy.authenticate(credentials);
+      if (strategy.canHandle(username)) {
+        return strategy.authenticate(username);
       }
     }
-    
-    throw new UnauthorizedException('No suitable authentication strategy found');
-  }
 
-  // Login với nhiều cách
-  async login(credentials: any) {
-    const user = await this.authenticate(credentials);
+    // Fallback: thử là MSSV
+    const studentStrategy = this.strategies.find(s => s instanceof StudentAuthStrategy);
+    if (studentStrategy) {
+      return studentStrategy.authenticate(username);
+    }
+
+    throw new UnauthorizedException('Không tìm thấy strategy phù hợp');
+  }
+}
+```
+
+**Cách sử dụng trong AuthService:**
+
+```typescript
+import { AuthStrategyContext, AuthResult } from './strategies/auth-strategy';
+
+@Injectable()
+export class AuthService {
+  constructor(
+    private usersService: UsersService,
+    private jwtService: JwtService,
+    private authStrategyContext: AuthStrategyContext,
+  ) {}
+
+  async login(username: string, password: string) {
+    if (password !== 'pass123') {
+      throw new UnauthorizedException('Sai mật khẩu');
+    }
+
+    // Use Strategy Pattern to authenticate
+    let authResult: AuthResult;
+    try {
+      authResult = await this.authStrategyContext.authenticate(username);
+    } catch (error) {
+      throw new UnauthorizedException('Tài khoản không tồn tại');
+    }
+
+    if (!authResult || !authResult.user) {
+      throw new UnauthorizedException('Tài khoản không tồn tại');
+    }
+
+    const { user, userType } = authResult;
+
     const payload = { sub: user.id, email: user.email, role: user.role };
-    
     return {
-      access_token: this.jwtService.sign(payload),
-      user
+      accessToken: this.jwtService.sign(payload),
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        studentCode: user.studentCode,
+        role: user.role,
+      },
     };
   }
 }
@@ -226,49 +246,7 @@ export class Authenticator {
 
 ---
 
-## 5. Cách sử dụng
-
-```typescript
-// Trong AuthController
-import { Authenticator } from './strategies/auth-strategy';
-
-@Controller('auth')
-export class AuthController {
-  constructor(private authenticator: Authenticator) {}
-
-  @Post('login')
-  async login(@Body() dto: LoginDto) {
-    // Local auth - email/password
-    return await this.authenticator.login({
-      email: dto.email,
-      password: dto.password
-    });
-  }
-
-  @Post('oauth/google')
-  async oauthGoogle(@Body() body: { token: string }) {
-    // OAuth - chỉ cần token từ Google
-    const profile = await this.getGoogleProfile(body.token);
-    return await this.authenticator.authenticate({
-      provider: 'google',
-      profile
-    });
-  }
-
-  @Get('me')
-  @UseGuards(JwtAuthGuard)
-  async me(@Request() req) {
-    // JWT auth - token từ header
-    return await this.authenticator.authenticate({
-      token: req.headers.authorization?.replace('Bearer ', '')
-    });
-  }
-}
-```
-
----
-
-## 6. Giải thích tại sao áp dụng Strategy
+## 5. Giải thích tại sao áp dụng Strategy
 
 ### Vấn đề gặp phải:
 - AuthService chịu trách nhiệm quá nhiều loại xác thực
@@ -278,12 +256,12 @@ export class AuthController {
 
 ### Giải pháp Strategy:
 - Tách mỗi loại xác thực thành Strategy riêng
-- Authenticator chỉ quản lý việc chọn strategy phù hợp
+- AuthStrategyContext chỉ quản lý việc chọn strategy phù hợp
 - Thêm cách xác thực mới không cần sửa code cũ
 
 ---
 
-## 7. Lợi ích của Strategy Pattern
+## 6. Lợi ích của Strategy Pattern
 
 | Tiêu chí | Trước khi dùng Strategy | Sau khi dùng Strategy |
 |----------|----------------------|---------------------|
@@ -308,47 +286,65 @@ export class AuthController {
 
 ---
 
-## 8. Sơ đồ Class
+## 7. Sơ đồ Class
 
 ```mermaid
 classDiagram
-    class Authenticator {
+    class AuthController {
+        +login()
+    }
+
+    class AuthService {
+        -authStrategyContext: AuthStrategyContext
+        -jwtService: JwtService
+        +login(username, password)
+    }
+
+    class AuthStrategyContext {
         -strategies: AuthStrategy[]
         +addStrategy(strategy)
-        +authenticate(credentials): User
-        +login(credentials)
+        +authenticate(username): AuthResult
     }
-    
+
     class <<interface>> AuthStrategy {
-        +supports(credentials): boolean
-        +authenticate(credentials): User
+        +getName(): string
+        +canHandle(username): boolean
+        +authenticate(username): AuthResult
     }
-    
-    Authenticator --> AuthStrategy
-    
-    AuthStrategy <|.. LocalAuthStrategy
-    AuthStrategy <|.. JwtAuthStrategy
-    AuthStrategy <|.. OAuthStrategy
-    
-    class LocalAuthStrategy {
-        +supports(credentials): boolean
-        +authenticate(credentials): User
+
+    AuthController --> AuthService
+    AuthService --> AuthStrategyContext
+    AuthStrategyContext --> AuthStrategy
+
+    AuthStrategy <|.. AdminAuthStrategy
+    AuthStrategy <|.. LecturerAuthStrategy
+    AuthStrategy <|.. StudentAuthStrategy
+
+    class AdminAuthStrategy {
+        -usersService: UsersService
+        +getName(): string
+        +canHandle(username): boolean
+        +authenticate(username): AuthResult
     }
-    
-    class JwtAuthStrategy {
-        +supports(credentials): boolean
-        +authenticate(credentials): User
+
+    class LecturerAuthStrategy {
+        -usersService: UsersService
+        +getName(): string
+        +canHandle(username): boolean
+        +authenticate(username): AuthResult
     }
-    
-    class OAuthStrategy {
-        +supports(credentials): boolean
-        +authenticate(credentials): User
+
+    class StudentAuthStrategy {
+        -usersService: UsersService
+        +getName(): string
+        +canHandle(username): boolean
+        +authenticate(username): AuthResult
     }
 ```
 
 ---
 
-## 9. Kết luận
+## 8. Kết luận
 
 Strategy Pattern giúp quản lý nhiều thuật toán/xác thực khác nhau:
 
