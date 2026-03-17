@@ -11,7 +11,7 @@
  * và có thể truy cập ở bất kỳ đâu trong ứng dụng mà không cần inject
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Global } from '@nestjs/common';
 import { ConfigService as NestConfigService } from '@nestjs/config';
 
 export interface AppConfig {
@@ -26,13 +26,15 @@ export interface AppConfig {
 /**
  * Singleton Config Manager
  * Đảm bảo chỉ có một instance duy nhất trong toàn ứng dụng
+ * Sử dụng factory pattern của NestJS để đảm bảo singleton
  */
+@Global()
 @Injectable()
 export class ConfigManager {
   private static instance: ConfigManager;
   private config: NestConfigService;
 
-  private constructor(config: NestConfigService) {
+  constructor(config: NestConfigService) {
     if (ConfigManager.instance) {
       return ConfigManager.instance;
     }

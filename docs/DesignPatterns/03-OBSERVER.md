@@ -9,10 +9,9 @@
 ## 2. Bối cảnh áp dụng
 
 Trong hệ thống QR Attendance, khi có sự kiện điểm danh:
-- Sinh viên check-in thành công → Gửi email thông báo
-- Giảng viên duyệt/từ chối → Thông báo cho sinh viên
-- Điểm danh bị từ chối → Gửi thông báo kèm lý do
-- Buổi học bắt đầu → Thông báo nhắc nhở
+- Sinh viên check-in → Cập nhật thống kê
+- Giảng viên duyệt/từ chối → Ghi log hoạt động
+- Trạng thái thay đổi → Cập nhật analytics
 
 Cần một cơ chế để các thành phần khác "lắng nghe" sự kiện này mà không làm phức tạp hóa AttendanceService.
 
@@ -23,60 +22,34 @@ Cần một cơ chế để các thành phần khác "lắng nghe" sự kiện n
 **File:** `src/attendance/attendance.service.ts`
 
 ```typescript
-async approveAttendance(id: string, lecturerId: string) {
+async approveAttendance(id: string) {
   // Logic approve
   const attendance = await this.prisma.attendance.update({
     where: { id },
-    data: { status: 'APPROVED', approvedBy: lecturerId, approvedAt: new Date() }
+    data: { status: AttendanceStatus.APPROVED }
   });
-  
-  // Gửi email thủ công - vi phạm SRP
-  await this.emailService.send({
-    to: attendance.studentEmail,
-    subject: 'Điểm danh được duyệt',
-    body: `Điểm danh ngày ${attendance.checkInTime} đã được duyệt`
-  });
-  
-  // Gửi notification
-  await this.notificationService.push(attendance.studentId, {
-    title: 'Điểm danh được duyệt',
-    body: 'Điểm danh của bạn đã được giảng viên duyệt'
-  });
-  
-  // Log cho hệ thống
-  await this.auditLogService.log({
-    action: 'APPROVE_ATTENDANCE',
-    attendanceId: id,
-    lecturerId
-  });
-  
+
+  // Xử lý analytics thủ công - vi phạm SRP
+  this.totalApproved++;
+  console.log(`[APPROVED] Total approved: ${this.totalApproved}`);
+
+  // Xử lý logging thủ công
+  console.log(`[ATTENDANCE] ${attendance.studentId} approved`);
+
   return attendance;
 }
 
-async rejectAttendance(id: string, reason: string) {
+async rejectAttendance(id: string) {
   const attendance = await this.prisma.attendance.update({
     where: { id },
-    data: { status: 'REJECTED', rejectReason: reason }
+    data: { status: AttendanceStatus.REJECTED }
   });
-  
-  // Lặp lại logic thông báo
-  await this.emailService.send({ to: attendance.studentEmail, subject: 'Điểm danh bị từ chối', body: reason });
-  await this.notificationService.push(attendance.studentId, { title: 'Điểm danh bị từ chối', body: reason });
-  await this.auditLogService.log({ action: 'REJECT_ATTENDANCE', attendanceId: id, reason });
-  
-  return attendance;
-}
 
-async createAttendance(data: CreateAttendanceDto) {
-  const attendance = await this.prisma.attendance.create({ data });
-  
-  // Gửi thông báo cho giảng viên
-  await this.emailService.send({
-    to: data.lecturerEmail,
-    subject: 'Có sinh viên điểm danh',
-    body: `Sinh viên ${data.studentName} đã điểm danh`
-  });
-  
+  // Lặp lại logic
+  this.totalRejected++;
+  console.log(`[REJECTED] Total rejected: ${this.totalRejected}`);
+  console.log(`[ATTENDANCE] ${attendance.studentId} rejected`);
+
   return attendance;
 }
 ```
@@ -88,136 +61,136 @@ async createAttendance(data: CreateAttendanceDto) {
 **File:** `src/attendance/observers/attendance-observer.ts`
 
 ```typescript
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { AttendanceMethod, AttendanceStatus } from '@prisma/client';
 
-// ============ Observer Interface ============
+export const ATTENDANCE_OBSERVERS = 'ATTENDANCE_OBSERVERS';
+
+export interface AttendanceEvent {
+  attendanceId: string;
+  studentId: string;
+  sessionId: string;
+  oldStatus: AttendanceStatus | null;
+  newStatus: AttendanceStatus;
+  method: AttendanceMethod;
+  timestamp: Date;
+}
+
+/**
+ * Observer Interface
+ */
 export interface AttendanceObserver {
-  onAttendanceApproved(attendance: Attendance): Promise<void>;
-  onAttendanceRejected(attendance: Attendance, reason: string): Promise<void>;
-  onAttendanceCreated(attendance: Attendance): Promise<void>;
+  onAttendanceChange(event: AttendanceEvent): Promise<void>;
+  onAttendanceApproved(event: AttendanceEvent): Promise<void>;
+  onAttendanceRejected(event: AttendanceEvent): Promise<void>;
+  onAttendancePending(event: AttendanceEvent): Promise<void>;
 }
 
-// ============ Email Notification Observer ============
+/**
+ * Logging Observer - Ghi log hoạt động điểm danh
+ */
 @Injectable()
-export class EmailNotificationObserver implements AttendanceObserver {
-  constructor(private emailService: EmailService) {}
-
-  async onAttendanceApproved(attendance: Attendance): Promise<void> {
-    await this.emailService.send({
-      to: attendance.studentEmail,
-      subject: '✅ Điểm danh được duyệt',
-      body: `Điểm danh ngày ${attendance.checkInTime} đã được duyệt bởi giảng viên.`
-    });
+export class AttendanceLoggingObserver implements AttendanceObserver {
+  async onAttendanceChange(event: AttendanceEvent): Promise<void> {
+    console.log(`[ATTENDANCE] ${event.studentId} - ${event.oldStatus} -> ${event.newStatus}`);
   }
 
-  async onAttendanceRejected(attendance: Attendance, reason: string): Promise<void> {
-    await this.emailService.send({
-      to: attendance.studentEmail,
-      subject: '❌ Điểm danh bị từ chối',
-      body: `Điểm danh của bạn bị từ chối. Lý do: ${reason}`
-    });
+  async onAttendanceApproved(event: AttendanceEvent): Promise<void> {
+    console.log(`[APPROVED] Attendance ${event.attendanceId} approved for session ${event.sessionId}`);
   }
 
-  async onAttendanceCreated(attendance: Attendance): Promise<void> {
-    // Có thể gửi email xác nhận cho sinh viên
+  async onAttendanceRejected(event: AttendanceEvent): Promise<void> {
+    console.log(`[REJECTED] Attendance ${event.attendanceId} rejected for session ${event.sessionId}`);
+  }
+
+  async onAttendancePending(event: AttendanceEvent): Promise<void> {
+    console.log(`[PENDING] Attendance ${event.attendanceId} pending approval for session ${event.sessionId}`);
   }
 }
 
-// ============ Push Notification Observer ============
+/**
+ * Analytics Observer - Cập nhật thống kê
+ */
 @Injectable()
-export class PushNotificationObserver implements AttendanceObserver {
-  constructor(private notificationService: NotificationService) {}
+export class AttendanceAnalyticsObserver implements AttendanceObserver {
+  private stats = {
+    total: 0,
+    approved: 0,
+    rejected: 0,
+    pending: 0,
+  };
 
-  async onAttendanceApproved(attendance: Attendance): Promise<void> {
-    await this.notificationService.push(attendance.studentId, {
-      title: 'Điểm danh được duyệt',
-      body: 'Điểm danh của bạn đã được giảng viên duyệt'
-    });
+  async onAttendanceChange(event: AttendanceEvent): Promise<void> {
+    this.stats.total++;
   }
 
-  async onAttendanceRejected(attendance: Attendance, reason: string): Promise<void> {
-    await this.notificationService.push(attendance.studentId, {
-      title: 'Điểm danh bị từ chối',
-      body: reason
-    });
+  async onAttendanceApproved(event: AttendanceEvent): Promise<void> {
+    this.stats.approved++;
+    console.log(`[ANALYTICS] Total approved: ${this.stats.approved}`);
   }
 
-  async onAttendanceCreated(attendance: Attendance): Promise<void> {
-    await this.notificationService.push(attendance.lecturerId, {
-      title: 'Có điểm danh mới',
-      body: `Sinh viên ${attendance.studentName} đã điểm danh`
-    });
-  }
-}
-
-// ============ Audit Log Observer ============
-@Injectable()
-export class AuditLogObserver implements AttendanceObserver {
-  constructor(private auditLogService: AuditLogService) {}
-
-  async onAttendanceApproved(attendance: Attendance): Promise<void> {
-    await this.auditLogService.log({
-      action: 'APPROVE_ATTENDANCE',
-      attendanceId: attendance.id,
-      timestamp: new Date()
-    });
+  async onAttendanceRejected(event: AttendanceEvent): Promise<void> {
+    this.stats.rejected++;
+    console.log(`[ANALYTICS] Total rejected: ${this.stats.rejected}`);
   }
 
-  async onAttendanceRejected(attendance: Attendance, reason: string): Promise<void> {
-    await this.auditLogService.log({
-      action: 'REJECT_ATTENDANCE',
-      attendanceId: attendance.id,
-      reason,
-      timestamp: new Date()
-    });
+  async onAttendancePending(event: AttendanceEvent): Promise<void> {
+    this.stats.pending++;
+    console.log(`[ANALYTICS] Total pending: ${this.stats.pending}`);
   }
 
-  async onAttendanceCreated(attendance: Attendance): Promise<void> {
-    await this.auditLogService.log({
-      action: 'CREATE_ATTENDANCE',
-      attendanceId: attendance.id,
-      timestamp: new Date()
-    });
+  getStats() {
+    return { ...this.stats };
   }
 }
 
-// ============ Subject (Publisher) ============
+/**
+ * Subject - Quản lý danh sách observers
+ */
 @Injectable()
 export class AttendanceSubject {
   private observers: AttendanceObserver[] = [];
 
   constructor(
-    private emailObserver: EmailNotificationObserver,
-    private pushObserver: PushNotificationObserver,
-    private auditObserver: AuditLogObserver
+    @Inject(ATTENDANCE_OBSERVERS) observers: AttendanceObserver[] = [],
   ) {
-    // Đăng ký tất cả observers mặc định
-    this.observers.push(emailObserver, pushObserver, auditObserver);
+    this.observers = [...new Set(observers)];
   }
 
-  subscribe(observer: AttendanceObserver): void {
-    this.observers.push(observer);
+  attach(observer: AttendanceObserver): void {
+    if (!this.observers.includes(observer)) {
+      this.observers.push(observer);
+    }
   }
 
-  unsubscribe(observer: AttendanceObserver): void {
-    this.observers = this.observers.filter(o => o !== observer);
+  detach(observer: AttendanceObserver): void {
+    const index = this.observers.indexOf(observer);
+    if (index > -1) {
+      this.observers.splice(index, 1);
+    }
   }
 
-  async notifyApproved(attendance: Attendance): Promise<void> {
+  async notify(event: AttendanceEvent): Promise<void> {
     await Promise.all(
-      this.observers.map(observer => observer.onAttendanceApproved(attendance))
-    );
-  }
+      this.observers.map(async (observer) => {
+        try {
+          await observer.onAttendanceChange(event);
 
-  async notifyRejected(attendance: Attendance, reason: string): Promise<void> {
-    await Promise.all(
-      this.observers.map(observer => observer.onAttendanceRejected(attendance, reason))
-    );
-  }
-
-  async notifyCreated(attendance: Attendance): Promise<void> {
-    await Promise.all(
-      this.observers.map(observer => observer.onAttendanceCreated(attendance))
+          switch (event.newStatus) {
+            case AttendanceStatus.APPROVED:
+              await observer.onAttendanceApproved(event);
+              break;
+            case AttendanceStatus.REJECTED:
+              await observer.onAttendanceRejected(event);
+              break;
+            case AttendanceStatus.PENDING:
+              await observer.onAttendancePending(event);
+              break;
+          }
+        } catch (error) {
+          console.error(`[ERROR] Observer notification failed:`, error);
+        }
+      }),
     );
   }
 }
@@ -227,40 +200,102 @@ export class AttendanceSubject {
 
 ## 5. Cách sử dụng trong AttendanceService
 
+**File:** `src/attendance/attendance.service.ts`
+
 ```typescript
-// Trong AttendanceService
-import { AttendanceSubject } from '../observers/attendance-observer';
+import {
+  AttendanceEvent,
+  AttendanceSubject,
+} from './observers/attendance-observer';
 
 @Injectable()
 export class AttendanceService {
   constructor(
-    private attendanceSubject: AttendanceSubject,
-    // các service khác
+    private prisma: PrismaService,
+    private subject: AttendanceSubject,
   ) {}
 
-  async approveAttendance(id: string, lecturerId: string) {
-    const attendance = await this.prisma.attendance.update({
-      where: { id },
-      data: { status: 'APPROVED', approvedBy: lecturerId, approvedAt: new Date() }
+  private async publishAttendanceEvent(
+    event: Omit<AttendanceEvent, 'timestamp'> & { timestamp?: Date },
+  ) {
+    await this.subject.notify({
+      ...event,
+      timestamp: event.timestamp ?? new Date(),
     });
-    
-    // Thông báo cho tất cả observers
-    await this.attendanceSubject.notifyApproved(attendance);
-    
-    return attendance;
   }
 
-  async rejectAttendance(id: string, reason: string) {
-    const attendance = await this.prisma.attendance.update({
-      where: { id },
-      data: { status: 'REJECTED', rejectReason: reason }
+  async approveAttendance(attendanceId: string) {
+    const [existing, att] = await this.$transaction([
+      this.prisma.attendance.findUnique({ where: { id: attendanceId }, select: { status: true } }),
+      this.prisma.attendance.update({
+        where: { id: attendanceId },
+        data: { status: AttendanceStatus.APPROVED },
+      }),
+    ]);
+
+    // Thông báo cho tất cả observers
+    await this.publishAttendanceEvent({
+      attendanceId: att.id,
+      studentId: att.studentId,
+      sessionId: att.sessionId,
+      oldStatus: existing?.status ?? null,
+      newStatus: AttendanceStatus.APPROVED,
+      method: att.method,
     });
-    
-    await this.attendanceSubject.notifyRejected(attendance, reason);
-    
-    return attendance;
+
+    return att;
+  }
+
+  async rejectAttendance(attendanceId: string) {
+    const [existing, att] = await this.$transaction([
+      this.prisma.attendance.findUnique({ where: { id: attendanceId }, select: { status: true } }),
+      this.prisma.attendance.update({
+        where: { id: attendanceId },
+        data: { status: AttendanceStatus.REJECTED },
+      }),
+    ]);
+
+    await this.publishAttendanceEvent({
+      attendanceId: att.id,
+      studentId: att.studentId,
+      sessionId: att.sessionId,
+      oldStatus: existing?.status ?? null,
+      newStatus: AttendanceStatus.REJECTED,
+      method: att.method,
+    });
+
+    return att;
   }
 }
+```
+
+**File:** `src/attendance/attendance.module.ts`
+
+```typescript
+import { Module } from '@nestjs/common';
+import {
+  ATTENDANCE_OBSERVERS,
+  AttendanceLoggingObserver,
+  AttendanceAnalyticsObserver,
+  AttendanceSubject,
+} from './observers/attendance-observer';
+
+@Module({
+  providers: [
+    AttendanceLoggingObserver,
+    AttendanceAnalyticsObserver,
+    {
+      provide: ATTENDANCE_OBSERVERS,
+      useFactory: (
+        loggingObserver: AttendanceLoggingObserver,
+        analyticsObserver: AttendanceAnalyticsObserver,
+      ) => [loggingObserver, analyticsObserver],
+      inject: [AttendanceLoggingObserver, AttendanceAnalyticsObserver],
+    },
+    AttendanceSubject,
+  ],
+})
+export class AttendanceModule {}
 ```
 
 ---
@@ -268,7 +303,7 @@ export class AttendanceService {
 ## 6. Giải thích tại sao áp dụng Observer
 
 ### Vấn đề gặp phải:
-- AttendanceService phải gọi nhiều service khác (email, notification, audit)
+- AttendanceService phải xử lý logging, analytics cùng lúc
 - Vi phạm Single Responsibility Principle
 - Khó thêm/bớt tính năng thông báo
 - Khó test vì phụ thuộc nhiều service
@@ -312,38 +347,52 @@ export class AttendanceService {
 classDiagram
     class AttendanceSubject {
         -observers: AttendanceObserver[]
-        +subscribe(observer)
-        +unsubscribe(observer)
-        +notifyApproved(attendance)
-        +notifyRejected(attendance, reason)
+        +attach(observer: AttendanceObserver): void
+        +detach(observer: AttendanceObserver): void
+        +notify(event: AttendanceEvent): Promise~void~
     }
-    
+
     class <<interface>> AttendanceObserver {
-        +onAttendanceApproved(attendance)
-        +onAttendanceRejected(attendance, reason)
-        +onAttendanceCreated(attendance)
+        +onAttendanceChange(event: AttendanceEvent): Promise~void~
+        +onAttendanceApproved(event: AttendanceEvent): Promise~void~
+        +onAttendanceRejected(event: AttendanceEvent): Promise~void~
+        +onAttendancePending(event: AttendanceEvent): Promise~void~
     }
-    
+
     AttendanceSubject --> AttendanceObserver
-    
-    AttendanceObserver <|.. EmailNotificationObserver
-    AttendanceObserver <|.. PushNotificationObserver
-    AttendanceObserver <|.. AuditLogObserver
-    
-    class EmailNotificationObserver {
-        +onAttendanceApproved(attendance)
-        +onAttendanceRejected(attendance, reason)
+    AttendanceSubject "1" *-- "*" AttendanceObserver : manages
+
+    AttendanceObserver <|.. AttendanceLoggingObserver
+    AttendanceObserver <|.. AttendanceAnalyticsObserver
+
+    class AttendanceLoggingObserver {
+        -logger: Logger
+        +onAttendanceChange(event: AttendanceEvent): Promise~void~
+        +onAttendanceApproved(event: AttendanceEvent): Promise~void~
+        +onAttendanceRejected(event: AttendanceEvent): Promise~void~
+        +onAttendancePending(event: AttendanceEvent): Promise~void~
     }
-    
-    class PushNotificationObserver {
-        +onAttendanceApproved(attendance)
-        +onAttendanceRejected(attendance, reason)
+
+    class AttendanceAnalyticsObserver {
+        -stats: {total, approved, rejected, pending}
+        +onAttendanceChange(event: AttendanceEvent): Promise~void~
+        +onAttendanceApproved(event: AttendanceEvent): Promise~void~
+        +onAttendanceRejected(event: AttendanceEvent): Promise~void~
+        +onAttendancePending(event: AttendanceEvent): Promise~void~
+        +getStats(): object
     }
-    
-    class AuditLogObserver {
-        +onAttendanceApproved(attendance)
-        +onAttendanceRejected(attendance, reason)
+
+    class AttendanceEvent {
+        +attendanceId: string
+        +studentId: string
+        +sessionId: string
+        +oldStatus: AttendanceStatus | null
+        +newStatus: AttendanceStatus
+        +method: AttendanceMethod
+        +timestamp: Date
     }
+
+    AttendanceSubject ..> AttendanceEvent : notifies
 ```
 
 ---
@@ -358,4 +407,3 @@ Observer Pattern giúp tách biệt logic nghiệp vụ khỏi logic thông báo
 - ✅ Dễ test từng thành phần
 
 **Khuyến nghị:** Sử dụng Observer khi một thay đổi cần thông báo cho nhiều thành phần khác nhau mà không muốn chúng coupled chặt với nhau.
-

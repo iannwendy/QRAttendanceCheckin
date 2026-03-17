@@ -6,11 +6,25 @@ import { ConfigModule } from '@nestjs/config';
 import { SessionBuilderDirector } from './builders/session.builder';
 import { UsersModule } from '../users/users.module';
 import { QRTokenService } from '../common/utils/qr-token.util';
+import {
+  JWTTokenAdapter,
+  JSONTokenAdapter,
+  RawJWTPayloadAdapter,
+  QRTokenAdapterManager,
+} from '../common/utils/qr-token-adapter';
 
 @Module({
   imports: [JwtModule, ConfigModule, UsersModule],
   controllers: [SessionsController],
-  providers: [SessionsService, SessionBuilderDirector, QRTokenService],
-  exports: [SessionsService, QRTokenService],
+  providers: [
+    SessionsService,
+    SessionBuilderDirector,
+    QRTokenService,
+    JWTTokenAdapter,
+    JSONTokenAdapter,
+    RawJWTPayloadAdapter,
+    QRTokenAdapterManager,
+  ],
+  exports: [SessionsService, QRTokenService, QRTokenAdapterManager],
 })
 export class SessionsModule {}

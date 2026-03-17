@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, Global } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { APP_GUARD } from '@nestjs/core';
@@ -14,6 +14,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { HealthController } from './health/health.controller';
+import { ConfigManager } from './common/config/config-manager';
 
 @Module({
   imports: [
@@ -45,10 +46,12 @@ import { HealthController } from './health/health.controller';
   ],
   controllers: [HealthController],
   providers: [
+    ConfigManager,
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
     },
   ],
+  exports: [ConfigManager],
 })
 export class AppModule {}

@@ -12,8 +12,8 @@ Trong hệ thống QR Attendance, khi tạo một Session (buổi học), cần 
 - Thông tin cơ bản: classId, title, description
 - Thời gian: startTime, endTime
 - Vị trí: latitude, longitude, geofenceRadius
-- Bảo mật: otpSecret, qrCode
-- Trạng thái: isActive, createdBy
+- Bảo mật: otpSecret, publicCode
+- Validation và auto-enroll sinh viên
 
 Logic tạo session phức tạp, nhiều validation và xử lý lồng nhau.
 
@@ -24,62 +24,50 @@ Logic tạo session phức tạp, nhiều validation và xử lý lồng nhau.
 **File:** `src/sessions/sessions.service.ts`
 
 ```typescript
-async createSession(dto: CreateSessionDto, lecturerId: string) {
+async createSession(dto: CreateSessionDto) {
   // Validation
   if (new Date(dto.startTime) >= new Date(dto.endTime)) {
     throw new BadRequestException('Start time must be before end time');
   }
 
+  // Validate location
+  if (dto.latitude < -90 || dto.latitude > 90) {
+    throw new BadRequestException('Invalid latitude');
+  }
+
   // Generate OTP
   const otpSecret = authenticator.generateSecret();
-  const otpCode = authenticator.generate(otpSecret);
 
-  // Generate QR Code
-  const qrData = JSON.stringify({
-    sessionId: '',
-    otp: otpCode,
-    exp: Date.now() + 3600000
+  // Validate publicCode unique
+  const existing = await this.prisma.session.findFirst({
+    where: { publicCode: dto.publicCode }
   });
-  const qrCode = await this.qrCodeService.generate(qrData);
+  if (existing) {
+    throw new BadRequestException('Public code already exists');
+  }
 
-  // Tạo session
+  // Create session
   const session = await this.prisma.session.create({
     data: {
       classId: dto.classId,
       title: dto.title,
-      description: dto.description,
       startTime: new Date(dto.startTime),
       endTime: new Date(dto.endTime),
       latitude: dto.latitude,
       longitude: dto.longitude,
-      geofenceRadius: dto.geofenceRadius || 100,
+      geofenceRadius: dto.geofenceRadius,
       otpSecret,
-      otpCode,
-      qrCode,
-      createdBy: lecturerId,
-      isActive: true
+      publicCode: dto.publicCode,
     }
   });
 
-  // Cập nhật QR data với session ID
-  const updatedQrData = JSON.stringify({
-    sessionId: session.id,
-    otp: otpCode,
-    exp: Date.now() + 3600000
+  // Auto-enroll students - lặp lại code
+  const students = await this.prisma.user.findMany({
+    where: { role: 'STUDENT' }
   });
-  const updatedQrCode = await this.qrCodeService.generate(updatedQrData);
-  
-  return await this.prisma.session.update({
-    where: { id: session.id },
-    data: { qrCode: updatedQrCode }
-  });
-}
+  // ... enroll logic
 
-// Method tạo session khác (ví dụ: auto-generate)
-async createAutoSession(dto: AutoCreateSessionDto) {
-  const otpSecret = authenticator.generateSecret();
-  const otpCode = authenticator.generate(otpSecret);
-  // ... lặp lại logic tương tự
+  return session;
 }
 ```
 
@@ -90,151 +78,280 @@ async createAutoSession(dto: AutoCreateSessionDto) {
 **File:** `src/sessions/builders/session.builder.ts`
 
 ```typescript
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { authenticator } from 'otplib';
-import { Session, Prisma } from '@prisma/client';
+import { AttendanceMethod, AttendanceStatus, Session } from '@prisma/client';
+import { PrismaService } from '../../common/prisma/prisma.service';
+import { CreateSessionDto } from '../dto/create-session.dto';
+import { QuickCreateSessionDto } from '../dto/quick-create-session.dto';
+import { UserPrototypeManager } from '../../users/prototypes/user.prototype';
 
 export interface SessionBuildResult {
-  session: Partial<Session>;
+  session: Session;
+  studentCount: number;
+  autoEnrolled: boolean;
   validationErrors: string[];
 }
 
-@Injectable()
-export class SessionBuilder {
-  private session: Partial<Session> = {};
+class SessionBuilder {
+  private dto!: CreateSessionDto;
+  private otpSecret = '';
+  private publicCode = '';
+  private session?: Session;
+  private autoEnrolledCount = 0;
   private validations: string[] = [];
 
-  // ============ Bước 1: Thiết lập thông tin cơ bản ============
-  setBasicInfo(classId: string, title: string, description?: string): this {
-    this.session.classId = classId;
-    this.session.title = title;
-    this.session.description = description;
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly userPrototypeManager: UserPrototypeManager,
+  ) {}
+
+  setBasicInfo(dto: CreateSessionDto): this {
+    this.dto = dto;
     return this;
   }
 
-  // ============ Bước 2: Thiết lập thời gian ============
-  setTime(startTime: Date | string, endTime: Date | string): this {
-    const start = new Date(startTime);
-    const end = new Date(endTime);
-    
+  setTimeRange(): this {
+    const start = new Date(this.dto.startTime);
+    const end = new Date(this.dto.endTime);
+
     if (start >= end) {
-      this.validations.push('Start time must be before end time');
+      this.validations.push('Thời gian bắt đầu phải nhỏ hơn thời gian kết thúc');
     }
-    
-    this.session.startTime = start;
-    this.session.endTime = end;
+
     return this;
   }
 
-  // ============ Bước 3: Thiết lập vị trí ============
-  setLocation(latitude: number, longitude: number, geofenceRadius?: number): this {
-    if (latitude < -90 || latitude > 90) {
-      this.validations.push('Invalid latitude');
+  setLocation(): this {
+    if (this.dto.latitude < -90 || this.dto.latitude > 90) {
+      this.validations.push('Vĩ độ không hợp lệ');
     }
-    if (longitude < -180 || longitude > 180) {
-      this.validations.push('Invalid longitude');
+    if (this.dto.longitude < -180 || this.dto.longitude > 180) {
+      this.validations.push('Kinh độ không hợp lệ');
     }
-    
-    this.session.latitude = latitude;
-    this.session.longitude = longitude;
-    this.session.geofenceRadius = geofenceRadius || 100;
     return this;
   }
 
-  // ============ Bước 4: Generate OTP ============
-  generateOTP(): this {
-    this.session.otpSecret = authenticator.generateSecret();
-    this.session.otpCode = authenticator.generate(this.session.otpSecret);
+  setPublicCode(): this {
+    this.publicCode = (this.dto.publicCode || '').trim().toUpperCase();
+    if (!this.publicCode) {
+      this.validations.push('Mã buổi là bắt buộc');
+    }
     return this;
   }
 
-  // ============ Bước 5: Generate QR Code ============
-  async generateQRCode(qrService: any): Promise<this> {
-    const qrData = JSON.stringify({
-      sessionId: '', // sẽ cập nhật sau
-      otp: this.session.otpCode,
-      exp: Date.now() + 3600000
-    });
-    this.session.qrCode = await qrService.generate(qrData);
-    return this;
-  }
-
-  // ============ Bước 6: Thiết lập metadata ============
-  setMetadata(createdBy: string, isActive: boolean = true): this {
-    this.session.createdBy = createdBy;
-    this.session.isActive = isActive;
-    return this;
-  }
-
-  // ============ Bước 7: Validate ============
   validate(): this {
-    // Validate classId
-    if (!this.session.classId) {
-      this.validations.push('Class ID is required');
+    if (!this.dto.classId) {
+      this.validations.push('Class ID là bắt buộc');
     }
-    // Validate title
-    if (!this.session.title) {
-      this.validations.push('Title is required');
+    if (!this.dto.title) {
+      this.validations.push('Tiêu đề buổi học là bắt buộc');
     }
-    // Validate location
-    if (this.session.latitude === undefined || this.session.longitude === undefined) {
-      this.validations.push('Location is required');
+    if (this.dto.latitude === undefined || this.dto.longitude === undefined) {
+      this.validations.push('Thông tin vị trí là bắt buộc');
     }
+
     return this;
   }
 
-  // ============ Bước 8: Build ============
+  generateOTP(): this {
+    this.otpSecret = authenticator.generateSecret();
+    return this;
+  }
+
+  async validatePublicCodeUnique(): Promise<this> {
+    if (this.publicCode) {
+      const conflict = await this.prisma.session.findFirst({
+        where: { publicCode: this.publicCode } as any,
+        select: { id: true },
+      });
+
+      if (conflict) {
+        this.validations.push('Mã buổi đã tồn tại, vui lòng chọn mã khác');
+      }
+    }
+
+    return this;
+  }
+
+  async createSession(): Promise<this> {
+    this.session = await this.prisma.session.create({
+      data: {
+        classId: this.dto.classId,
+        title: this.dto.title,
+        startTime: new Date(this.dto.startTime),
+        endTime: new Date(this.dto.endTime),
+        latitude: this.dto.latitude,
+        longitude: this.dto.longitude,
+        geofenceRadius: this.dto.geofenceRadius,
+        otpSecret: this.otpSecret,
+        publicCode: this.publicCode,
+      } as any,
+    });
+
+    return this;
+  }
+
+  async autoEnrollStudents(): Promise<this> {
+    if (!this.session) {
+      throw new BadRequestException('Session chưa được tạo');
+    }
+
+    // Lấy danh sách sinh viên mẫu
+    const toPadded = (n: number) => n.toString().padStart(4, '0');
+    const studentCodes = Array.from(
+      { length: 100 },
+      (_, i) => `523H${toPadded(i + 1)}`,
+    );
+
+    // Tạo users nếu chưa tồn tại (sử dụng Prototype)
+    const existingUsers = await this.prisma.user.findMany({
+      where: { studentCode: { in: studentCodes } },
+      select: { id: true, studentCode: true },
+    });
+
+    const existingCodeSet = new Set(
+      existingUsers.map((u) => u.studentCode as string),
+    );
+
+    const missingCodes = studentCodes.filter(
+      (code) => !existingCodeSet.has(code),
+    );
+
+    if (missingCodes.length > 0) {
+      await this.userPrototypeManager.createBatchStudents(missingCodes);
+    }
+
+    // Enroll tất cả sinh viên
+    const allUsers = await this.prisma.user.findMany({
+      where: { studentCode: { in: studentCodes } },
+      select: { id: true, studentCode: true },
+    });
+
+    const enrollData = allUsers.map((u) => ({
+      classId: this.session.classId,
+      studentId: u.id,
+    }));
+    await this.prisma.enrollment.createMany({
+      data: enrollData,
+      skipDuplicates: true,
+    });
+
+    // Tạo attendance records
+    const attendanceData = allUsers.map((u) => ({
+      sessionId: this.session.id,
+      studentId: u.id,
+      method: AttendanceMethod.AUTO_IMPORT,
+      status: AttendanceStatus.NOT_ATTENDED,
+    }));
+    await this.prisma.attendance.createMany({
+      data: attendanceData,
+      skipDuplicates: true,
+    });
+
+    this.autoEnrolledCount = allUsers.length;
+
+    return this;
+  }
+
   getResult(): SessionBuildResult {
+    if (!this.session) {
+      throw new BadRequestException('Session chưa được tạo');
+    }
+
     return {
-      session: { ...this.session },
-      validationErrors: [...this.validations]
+      session: this.session,
+      studentCount: this.autoEnrolledCount,
+      autoEnrolled: true,
+      validationErrors: [...this.validations],
     };
   }
 
-  async build(prisma: any): Promise<Session> {
+  async build(): Promise<SessionBuildResult> {
     this.validate();
-    
+
     if (this.validations.length > 0) {
-      throw new Error(`Validation failed: ${this.validations.join(', ')}`);
+      throw new BadRequestException(this.validations.join(', '));
     }
 
-    return await prisma.session.create({
-      data: this.session as Prisma.SessionCreateInput
-    });
+    await this.validatePublicCodeUnique();
+
+    if (this.validations.length > 0) {
+      throw new BadRequestException(this.validations.join(', '));
+    }
+
+    await this.createSession();
+    await this.autoEnrollStudents();
+
+    return this.getResult();
   }
 
-  // ============ Reset ============
   reset(): this {
-    this.session = {};
+    this.dto = undefined as unknown as CreateSessionDto;
+    this.otpSecret = '';
+    this.publicCode = '';
+    this.session = undefined;
+    this.autoEnrolledCount = 0;
     this.validations = [];
     return this;
   }
 }
 
-// ============ Director (Optional) ============
 @Injectable()
-export class SessionDirector {
-  constructor(private builder: SessionBuilder) {}
+export class SessionBuilderDirector {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly userPrototypeManager: UserPrototypeManager,
+  ) {}
 
-  buildStandardSession(dto: CreateSessionDto, lecturerId: string): SessionBuilder {
-    return this.builder
-      .setBasicInfo(dto.classId, dto.title, dto.description)
-      .setTime(dto.startTime, dto.endTime)
-      .setLocation(dto.latitude, dto.longitude, dto.geofenceRadius)
-      .generateOTP()
-      .setMetadata(lecturerId);
+  async buildStandardSession(dto: CreateSessionDto): Promise<SessionBuildResult> {
+    const builder = new SessionBuilder(this.prisma, this.userPrototypeManager);
+
+    try {
+      builder
+        .setBasicInfo(dto)
+        .setTimeRange()
+        .setLocation()
+        .setPublicCode()
+        .generateOTP();
+      return await builder.build();
+    } finally {
+      builder.reset();
+    }
   }
 
-  buildQuickSession(classId: string, lecturerId: string): SessionBuilder {
+  async buildQuickSession(dto: QuickCreateSessionDto): Promise<SessionBuildResult> {
+    const builder = new SessionBuilder(this.prisma, this.userPrototypeManager);
     const now = new Date();
-    const end = new Date(now.getTime() + 90 * 60000); // 90 phút
-    
-    return this.builder
-      .setBasicInfo(classId, `Session ${now.toISOString()}`)
-      .setTime(now, end)
-      .setLocation(0, 0, 100) // Default location
-      .generateOTP()
-      .setMetadata(lecturerId);
+    const durationMinutes = dto.durationMinutes ?? 90;
+    const end = new Date(now.getTime() + durationMinutes * 60000);
+    const title = dto.title?.trim() || `Session ${now.toISOString()}`;
+    const quickDto: CreateSessionDto = {
+      classId: dto.classId,
+      title,
+      startTime: now.toISOString(),
+      endTime: end.toISOString(),
+      latitude: dto.latitude ?? 0,
+      longitude: dto.longitude ?? 0,
+      geofenceRadius: dto.geofenceRadius ?? 100,
+      publicCode: (dto.publicCode || this.generateQuickPublicCode()).toUpperCase(),
+    };
+
+    try {
+      builder
+        .setBasicInfo(quickDto)
+        .setTimeRange()
+        .setLocation()
+        .setPublicCode()
+        .generateOTP();
+      return await builder.build();
+    } finally {
+      builder.reset();
+    }
+  }
+
+  private generateQuickPublicCode(): string {
+    return Math.random().toString(36).slice(2, 8).toUpperCase();
   }
 }
 ```
@@ -243,37 +360,41 @@ export class SessionDirector {
 
 ## 5. Cách sử dụng
 
-```typescript
-// Trong SessionsService
-import { SessionBuilder, SessionDirector } from './builders/session.builder';
+**File:** `src/sessions/sessions.service.ts`
 
+```typescript
 @Injectable()
 export class SessionsService {
   constructor(
-    private sessionBuilder: SessionBuilder,
-    private sessionDirector: SessionDirector,
-    private qrCodeService: QRCodeService
+    private prisma: PrismaService,
+    private sessionBuilderDirector: SessionBuilderDirector,
   ) {}
 
-  async createSession(dto: CreateSessionDto, lecturerId: string) {
-    // Cách 1: Sử dụng Builder trực tiếp
-    const session = await this.sessionBuilder
-      .setBasicInfo(dto.classId, dto.title, dto.description)
-      .setTime(dto.startTime, dto.endTime)
-      .setLocation(dto.latitude, dto.longitude, dto.geofenceRadius)
-      .generateOTP()
-      .setMetadata(lecturerId)
-      .build(this.prisma);
-    
-    return session;
+  async create(createSessionDto: CreateSessionDto) {
+    const result = await this.sessionBuilderDirector.buildStandardSession(createSessionDto);
+    return result.session;
   }
 
-  async createQuickSession(classId: string, lecturerId: string) {
-    // Cách 2: Sử dụng Director
-    const builder = this.sessionDirector.buildQuickSession(classId, lecturerId);
-    return await builder.build(this.prisma);
+  async createQuick(quickCreateSessionDto: QuickCreateSessionDto) {
+    const result = await this.sessionBuilderDirector.buildQuickSession(quickCreateSessionDto);
+    return result.session;
   }
 }
+```
+
+**File:** `src/sessions/sessions.module.ts`
+
+```typescript
+@Module({
+  imports: [UsersModule],
+  providers: [
+    SessionsService,
+    SessionBuilderDirector,
+    UserPrototypeManager,
+  ],
+  exports: [SessionsService],
+})
+export class SessionsModule {}
 ```
 
 ---
@@ -281,7 +402,7 @@ export class SessionsService {
 ## 6. Giải thích tại sao áp dụng Builder
 
 ### Vấn đề gặp phải:
-- Method tạo session quá dài (~50 dòng)
+- Method tạo session quá dài (~80 dòng)
 - Nhiều validation và xử lý lồng nhau
 - Khó tạo session với các biến thể khác nhau
 - Khó test từng bước
@@ -298,7 +419,7 @@ export class SessionsService {
 
 | Tiêu chí | Trước khi dùng Builder | Sau khi dùng Builder |
 |----------|----------------------|---------------------|
-| **Độ dài method** | ~50 dòng | Mỗi bước ~5 dòng |
+| **Độ dài method** | ~80 dòng | Mỗi bước ~5 dòng |
 | **Tái sử dụng** | Khó | Dễ dàng với Director |
 | **Test** | Khó test từng bước | Test từng bước dễ dàng |
 | **Đọc code** | Khó hiểu | Code gần như ngôn ngữ tự nhiên |
@@ -313,9 +434,9 @@ export class SessionsService {
    - Builder có thể tạo đối tượng immutable
 
 3. **Reusability**
-   - Tái sử dụng Builder cho nhiều use case
+   - Tái sử dụhiều use case
 
-4. **Step-by-step validation**
+4.ng Builder cho n **Step-by-step validation**
    - Validate từng bước, hiển lỗi ngay
 
 ---
@@ -325,28 +446,51 @@ export class SessionsService {
 ```mermaid
 classDiagram
     class SessionBuilder {
-        -session: Partial~Session~
+        -dto: CreateSessionDto
+        -otpSecret: string
+        -publicCode: string
+        -session: Session
+        -autoEnrolledCount: number
         -validations: string[]
-        +setBasicInfo(classId, title, desc): this
-        +setTime(start, end): this
-        +setLocation(lat, lng, radius): this
-        +generateOTP(): this
-        +generateQRCode(qrService): Promise~this~
-        +setMetadata(createdBy): this
+        -prisma: PrismaService
+        -userPrototypeManager: UserPrototypeManager
+        +setBasicInfo(dto: CreateSessionDto): this
+        +setTimeRange(): this
+        +setLocation(): this
+        +setPublicCode(): this
         +validate(): this
-        +build(prisma): Promise~Session~
+        +generateOTP(): this
+        +validatePublicCodeUnique(): Promise~this~
+        +createSession(): Promise~this~
+        +autoEnrollStudents(): Promise~this~
+        +getResult(): SessionBuildResult
+        +build(): Promise~SessionBuildResult~
         +reset(): this
     }
-    
-    class SessionDirector {
-        -builder: SessionBuilder
-        +buildStandardSession(dto, id): SessionBuilder
-        +buildQuickSession(classId, id): SessionBuilder
+
+    class SessionBuilderDirector {
+        -prisma: PrismaService
+        -userPrototypeManager: UserPrototypeManager
+        +buildStandardSession(dto: CreateSessionDto): Promise~SessionBuildResult~
+        +buildQuickSession(dto: QuickCreateSessionDto): Promise~SessionBuildResult~
     }
-    
-    SessionsService --> SessionBuilder
-    SessionsService --> SessionDirector
-    SessionDirector --> SessionBuilder
+
+    class SessionsService {
+        +create(createSessionDto: CreateSessionDto): Promise~Session~
+        +createQuick(dto: QuickCreateSessionDto): Promise~Session~
+    }
+
+    SessionsService --> SessionBuilderDirector
+    SessionBuilderDirector --> SessionBuilder : creates
+
+    class SessionBuildResult {
+        +session: Session
+        +studentCount: number
+        +autoEnrolled: boolean
+        +validationErrors: string[]
+    }
+
+    SessionBuilder ..> SessionBuildResult : returns
 ```
 
 ---
@@ -359,6 +503,6 @@ Builder Pattern giúp xây dựng đối tượng phức tạp một cách có h
 - ✅ Dễ dàng tạo các biến thể với Director
 - ✅ Validation từng bước, hiển lỗi ngay
 - ✅ Dễ test và bảo trì
+- ✅ Kết hợp tốt với Prototype Pattern để auto-enroll sinh viên
 
 **Khuyến nghị:** Sử dụng Builder khi đối tượng có nhiều thuộc tính và logic khởi tạo phức tạp.
-

@@ -11,11 +11,10 @@
 Trong hệ thống QR Attendance, có nhiều cấu hình cần được quản lý tập trung:
 - JWT_SECRET - Khóa ký JWT
 - QR_ROTATE_SECONDS - Thời gian hiệu lực QR
-- GEOCODING_API_KEY - API key cho geocoding
-- EMAIL_CONFIG - Cấu hình email
-- REDIS_URL - Redis connection
+- OTP_STEP_SECONDS - Thời gian step của OTP
+- GEOFENCE_RADIUS_DEFAULT - Bán kính geofence mặc định
 
-Mỗi service cần access这些配置, dẫn đến việc inject ConfigService nhiều lần.
+Mỗi service cần access các config này một cách nhất quán.
 
 ---
 
@@ -28,19 +27,12 @@ Mỗi service cần access这些配置, dẫn đến việc inject ConfigService
 export class SessionsService {
   constructor(
     private config: ConfigService,  // Inject nhiều lần
-    private prisma: PrismaService,
-    private qrCodeService: QRCodeService
   ) {}
 
   async generateQRCode(sessionId: string) {
     const jwtSecret = this.config.get('JWT_SECRET');  // Lấy config
     const rotateSeconds = this.config.get('QR_ROTATE_SECONDS') || 60;
     // ... generate QR
-  }
-
-  validateToken(token: string) {
-    const jwtSecret = this.config.get('JWT_SECRET');  // Lặp lại
-    // ... validate
   }
 }
 
@@ -49,25 +41,10 @@ export class SessionsService {
 export class AuthService {
   constructor(
     private config: ConfigService,  // Inject lại
-    private jwtService: JwtService
   ) {}
 
   generateToken() {
     const jwtSecret = this.config.get('JWT_SECRET');  // Lặp lại
-    // ...
-  }
-}
-
-// File khác nữa
-@Injectable()
-export class AttendanceService {
-  constructor(
-    private config: ConfigService,  // Inject lại
-    // ...
-  ) {}
-
-  getConfig() {
-    const secret = this.config.get('JWT_SECRET');  // Lặp lại
     // ...
   }
 }
@@ -80,45 +57,30 @@ export class AttendanceService {
 **File:** `src/common/config/config-manager.ts`
 
 ```typescript
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, Global } from '@nestjs/common';
 import { ConfigService as NestConfigService } from '@nestjs/config';
 
-// ============ Configuration Types ============
 export interface AppConfig {
-  jwt: {
-    secret: string;
-    expiresIn: string;
-  };
-  qr: {
-    rotateSeconds: number;
-    format: string;
-  };
-  geofence: {
-    defaultRadius: number;
-    maxRadius: number;
-  };
-  email: {
-    host: string;
-    port: number;
-    user: string;
-    password: string;
-  };
-  database: {
-    url: string;
-  };
+  jwtSecret: string;
+  qrRotateSeconds: number;
+  otpStepSeconds: number;
+  geofenceRadiusDefault: number;
+  uploadPath: string;
+  nodeEnv: 'development' | 'production';
 }
 
-// ============ Singleton ConfigManager ============
+/**
+ * Singleton Config Manager
+ * Đảm bảo chỉ có một instance duy nhất trong toàn ứng dụng
+ * Sử dụng factory pattern của NestJS để đảm bảo singleton
+ */
+@Global()
 @Injectable()
-export class ConfigManager implements OnModuleInit {
+export class ConfigManager {
   private static instance: ConfigManager;
   private config: NestConfigService;
-  
-  // Cached values - tránh đọc nhiều lần
-  private cache: Map<string, any> = new Map();
 
-  private constructor(config: NestConfigService) {
-    // Prevent multiple instances
+  constructor(config: NestConfigService) {
     if (ConfigManager.instance) {
       return ConfigManager.instance;
     }
@@ -126,7 +88,6 @@ export class ConfigManager implements OnModuleInit {
     ConfigManager.instance = this;
   }
 
-  // Static factory method - ensures single instance
   static getInstance(config?: NestConfigService): ConfigManager {
     if (!ConfigManager.instance && config) {
       ConfigManager.instance = new ConfigManager(config);
@@ -134,173 +95,79 @@ export class ConfigManager implements OnModuleInit {
     return ConfigManager.instance;
   }
 
-  onModuleInit() {
-    // Pre-load frequently accessed configs
-    this.cache.set('jwt.secret', this.get('JWT_SECRET', 'dev-secret-key'));
-    this.cache.set('qr.rotateSeconds', this.get('QR_ROTATE_SECONDS', 60));
-  }
-
-  // Get config with caching
-  get<T>(key: string, defaultValue?: T): T {
-    if (this.cache.has(key)) {
-      return this.cache.get(key);
-    }
-    
-    const value = this.config.get(key) || defaultValue;
-    this.cache.set(key, value);
-    return value;
-  }
-
-  // ============ JWT Config ============
   getJwtSecret(): string {
-    return this.get<string>('JWT_SECRET', 'dev-jwt-secret-change-in-production');
+    return this.config.get('JWT_SECRET') || 'dev_change_me';
   }
 
-  getJwtExpiresIn(): string {
-    return this.get<string>('JWT_EXPIRES_IN', '7d');
-  }
-
-  // ============ QR Config ============
   getQrRotateSeconds(): number {
-    return this.get<number>('QR_ROTATE_SECONDS', 60);
+    return parseInt(this.config.get('QR_ROTATE_SECONDS') || '180') || 180;
   }
 
-  getQrFormat(): string {
-    return this.get<string>('QR_FORMAT', 'jwt');
+  getOtpStepSeconds(): number {
+    return parseInt(this.config.get('OTP_STEP_SECONDS') || '30') || 30;
   }
 
-  // ============ Geofence Config ============
-  getDefaultGeofenceRadius(): number {
-    return this.get<number>('DEFAULT_GEOFENCE_RADIUS', 100);
+  getGeofenceRadiusDefault(): number {
+    return parseInt(this.config.get('GEOFENCE_RADIUS_DEFAULT') || '100') || 100;
   }
 
-  getMaxGeofenceRadius(): number {
-    return this.get<number>('MAX_GEOFENCE_RADIUS', 500);
+  getUploadPath(): string {
+    return this.config.get('UPLOAD_PATH') || './uploads';
   }
 
-  // ============ Email Config ============
-  getEmailHost(): string {
-    return this.get<string>('EMAIL_HOST', 'smtp.gmail.com');
+  getNodeEnv(): 'development' | 'production' {
+    return (this.config.get('NODE_ENV') as 'development' | 'production') || 'development';
   }
 
-  getEmailPort(): number {
-    return this.get<number>('EMAIL_PORT', 587);
-  }
-
-  getEmailUser(): string {
-    return this.get<string>('EMAIL_USER', '');
-  }
-
-  getEmailPassword(): string {
-    return this.get<string>('EMAIL_PASSWORD', '');
-  }
-
-  // ============ Database Config ============
-  getDatabaseUrl(): string {
-    return this.get<string>('DATABASE_URL', '');
-  }
-
-  // ============ Environment Helpers ============
-  isDevelopment(): boolean {
-    return this.get<string>('NODE_ENV', 'development') === 'development';
-  }
-
-  isProduction(): boolean {
-    return this.get<string>('NODE_ENV', 'development') === 'production';
-  }
-
-  // ============ Get All Config ============
   getAll(): AppConfig {
     return {
-      jwt: {
-        secret: this.getJwtSecret(),
-        expiresIn: this.getJwtExpiresIn()
-      },
-      qr: {
-        rotateSeconds: this.getQrRotateSeconds(),
-        format: this.getQrFormat()
-      },
-      geofence: {
-        defaultRadius: this.getDefaultGeofenceRadius(),
-        maxRadius: this.getMaxGeofenceRadius()
-      },
-      email: {
-        host: this.getEmailHost(),
-        port: this.getEmailPort(),
-        user: this.getEmailUser(),
-        password: this.getEmailPassword()
-      },
-      database: {
-        url: this.getDatabaseUrl()
-      }
+      jwtSecret: this.getJwtSecret(),
+      qrRotateSeconds: this.getQrRotateSeconds(),
+      otpStepSeconds: this.getOtpStepSeconds(),
+      geofenceRadiusDefault: this.getGeofenceRadiusDefault(),
+      uploadPath: this.getUploadPath(),
+      nodeEnv: this.getNodeEnv(),
     };
   }
-
-  // ============ Clear Cache ============
-  clearCache(): void {
-    this.cache.clear();
-  }
 }
-
-// ============ Module Definition ============
-import { Module, Global } from '@nestjs/common';
-
-@Global()
-@Module({
-  providers: [
-    {
-      provide: ConfigManager,
-      useFactory: (config: NestConfigService) => {
-        return ConfigManager.getInstance(config);
-      },
-      inject: [ConfigService]
-    }
-  ],
-  exports: [ConfigManager]
-})
-export class ConfigManagerModule {}
 ```
 
 ---
 
 ## 5. Cách sử dụng
 
+**File:** `src/app.module.ts`
+
 ```typescript
-// Trong bất kỳ service nào
+import { Module } from '@nestjs/common';
+import { ConfigManager } from './common/config/config-manager';
+
+@Module({
+  providers: [
+    ConfigManager,
+    // ... other providers
+  ],
+  exports: [ConfigManager],
+})
+export class AppModule {}
+```
+
+**Sử dụng trong service:**
+
+```typescript
 import { ConfigManager } from '../common/config/config-manager';
 
 @Injectable()
 export class SessionsService {
   constructor(
-    private configManager: ConfigManager,  // Chỉ cần inject 1 lần
-    private prisma: PrismaService
+    private configManager: ConfigManager,  // Inject 1 lần
   ) {}
 
-  async generateQRCode(sessionId: string) {
-    const jwtSecret = this.configManager.getJwtSecret();  // Dùng tiện ích
+  async generateQRCode() {
+    const jwtSecret = this.configManager.getJwtSecret();
     const rotateSeconds = this.configManager.getQrRotateSeconds();
-    
-    // Hoặc dùng helper
-    const config = this.configManager.getAll();
-    console.log(config.jwt.secret);
-  }
-}
-
-// Trong AuthService
-@Injectable()
-export class AuthService {
-  constructor(private configManager: ConfigManager) {}
-
-  generateToken() {
-    const secret = this.configManager.getJwtSecret();
-    const expiresIn = this.configManager.getJwtExpiresIn();
     // ...
   }
-}
-
-// Kiểm tra môi trường
-if (this.configManager.isProduction()) {
-  // Production specific logic
 }
 ```
 
@@ -312,11 +179,9 @@ if (this.configManager.isProduction()) {
 - ConfigService được inject vào mọi service
 - Truy cập config không nhất quán
 - Khó thay đổi cách đọc config
-- Caching không hiệu quả
 
 ### Giải pháp Singleton:
 - Một instance duy nhất cho toàn app
-- Caching tập trung
 - API nhất quán để truy cập config
 - Dễ dàng thay đổi cách đọc config
 
@@ -327,7 +192,6 @@ if (this.configManager.isProduction()) {
 | Tiêu chí | Trước khi dùng Singleton | Sau khi dùng Singleton |
 |----------|------------------------|----------------------|
 | **Instance** | Nhiều (mỗi service) | Một (toàn app) |
-| **Caching** | Không có | Có (Map cache) |
 | **API** | Không nhất quán | Nhất quán (typed methods) |
 | **Maintenance** | Khó | Dễ |
 
@@ -336,14 +200,14 @@ if (this.configManager.isProduction()) {
 1. **Global Access**
    - Truy cập từ bất kỳ đâu
 
-2. **Performance**
-   - Cache tránh đọc nhiều lần
-
-3. **Consistency**
+2. **Consistency**
    - Tất cả config qua một nơi
 
-4. **Easy Changes**
+3. **Easy Changes**
    - Thay đổi cách đọc config ở 1 chỗ
+
+4. **Type Safety**
+   - Các method được typed, giảm lỗi
 
 ---
 
@@ -354,31 +218,44 @@ classDiagram
     class ConfigManager {
         -static instance: ConfigManager
         -config: NestConfigService
-        -cache: Map~string, any~
-        -private constructor(config)
-        +static getInstance(config?): ConfigManager
-        +get~T~(key, defaultValue?): T
+        -private constructor(config: NestConfigService)
+        +static getInstance(config?: NestConfigService): ConfigManager
         +getJwtSecret(): string
         +getQrRotateSeconds(): number
+        +getOtpStepSeconds(): number
+        +getGeofenceRadiusDefault(): number
+        +getUploadPath(): string
+        +getNodeEnv(): string
         +getAll(): AppConfig
-        +clearCache(): void
     }
-    
+
+    class AppConfig {
+        +jwtSecret: string
+        +qrRotateSeconds: number
+        +otpStepSeconds: number
+        +geofenceRadiusDefault: number
+        +uploadPath: string
+        +nodeEnv: string
+    }
+
+    ConfigManager ..> AppConfig : returns
+    ConfigManager : "1" o-- "1" NestConfigService : wraps
+
     class SessionsService {
-        +configManager: ConfigManager
+        -configManager: ConfigManager
     }
-    
+
     class AuthService {
-        +configManager: ConfigManager
+        -configManager: ConfigManager
     }
-    
+
     class AttendanceService {
-        +configManager: ConfigManager
+        -configManager: ConfigManager
     }
-    
-    SessionsService --> ConfigManager
-    AuthService --> ConfigManager
-    AttendanceService --> ConfigManager
+
+    SessionsService --> ConfigManager : uses
+    AuthService --> ConfigManager : uses
+    AttendanceService --> ConfigManager : uses
 ```
 
 ---
@@ -388,9 +265,8 @@ classDiagram
 Singleton Pattern giúp quản lý config tập trung và hiệu quả:
 
 - ✅ Một instance duy nhất cho toàn ứng dụng
-- ✅ Cache tập trung, tăng performance
 - ✅ API nhất quán, dễ sử dụng
 - ✅ Dễ dàng thay đổi cách đọc config
+- ✅ Type safety với typed methods
 
 **Khuyến nghị:** Sử dụng Singleton cho các đối tượng cần shared state hoặc config toàn cục.
-

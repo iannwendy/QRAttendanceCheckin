@@ -1,19 +1,19 @@
 /**
  * FACADE PATTERN - Attendance Check-in Facade
- * 
+ *
  * Bối cảnh: Quy trình check-in QR có nhiều bước phức tạp:
- * 1. Verify QR token (nhiều định dạng)
+ * 1. Verify QR token (nhiều định dạng) - Sử dụng ADAPTER PATTERN
  * 2. Validate session tồn tại
  * 3. Kiểm tra sinh viên đã đăng ký lớp chưa
  * 4. Tính khoảng cách GPS
  * 5. Tạo/cập nhật attendance record
- * 
+ *
  * Facade cung cấp interface đơn giản hóa cho client, ẩn đi sự phức tạp bên trong
  */
 
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { QRTokenService, QRTokenPayload } from '../../common/utils/qr-token.util';
+import { QRTokenPayload, QRTokenAdapterManager } from '../../common/utils/qr-token-adapter';
 import { haversineDistance } from '../../common/utils/geography.util';
 import { AttendanceMethod, AttendanceStatus } from '@prisma/client';
 
@@ -26,12 +26,13 @@ export interface CheckInResult {
 
 /**
  * Facade đơn giản hóa toàn bộ quy trình check-in QR
+ * Sử dụng ADAPTER PATTERN để parse QR token với nhiều định dạng
  */
 @Injectable()
 export class AttendanceCheckInFacade {
   constructor(
     private prisma: PrismaService,
-    private qrTokenService: QRTokenService,
+    private qrTokenAdapterManager: QRTokenAdapterManager,
   ) {}
 
   /**
@@ -41,10 +42,16 @@ export class AttendanceCheckInFacade {
     qrToken: string,
     lat: number,
     lng: number,
-    accuracy?: number,
+    _accuracy?: number,
   ): Promise<CheckInResult> {
-    // Bước 1: Verify và parse QR token
-    const qrPayload = this.parseQRToken(qrToken);
+    // Bước 1: Verify và parse QR token - SỬ DỤNG ADAPTER PATTERN
+    let qrPayload: QRTokenPayload | null;
+    try {
+      qrPayload = this.qrTokenAdapterManager.parse(qrToken);
+    } catch {
+      qrPayload = null;
+    }
+
     if (!qrPayload) {
       return {
         success: false,
@@ -79,55 +86,10 @@ export class AttendanceCheckInFacade {
     return {
       success: isInGeofence,
       status: isInGeofence ? AttendanceStatus.APPROVED : AttendanceStatus.TOO_FAR,
-      message: isInGeofence 
-        ? 'Điểm danh thành công' 
+      message: isInGeofence
+        ? 'Điểm danh thành công'
         : `Bạn đang cách ${Math.round(distance)}m - vượt quá giới hạn ${session.geofenceRadius}m`,
     };
-  }
-
-  /**
-   * Parse QR token với nhiều định dạng
-   */
-  private parseQRToken(qrToken: string): QRTokenPayload | null {
-    // Thử JWT verify
-    let qrPayload = this.qrTokenService.verifyQRToken(qrToken);
-
-    // Thử parse JSON
-    if (!qrPayload) {
-      try {
-        const parsed = JSON.parse(qrToken);
-        if (parsed.sessionId && parsed.nonce) {
-          const now = Math.floor(Date.now() / 1000);
-          if (parsed.exp && parsed.exp >= now) {
-            qrPayload = parsed;
-          }
-        }
-      } catch {
-        // Ignore
-      }
-    }
-
-    // Fallback: decode không verify
-    if (!qrPayload) {
-      try {
-        const parts = qrToken.split('.');
-        if (parts.length === 3) {
-          const json = Buffer.from(
-            parts[1].replace(/-/g, '+').replace(/_/g, '/'),
-            'base64',
-          ).toString('utf8');
-          const decoded = JSON.parse(json);
-          const now = Math.floor(Date.now() / 1000);
-          if (decoded && decoded.sessionId && decoded.exp && decoded.exp >= now) {
-            qrPayload = decoded;
-          }
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    return qrPayload;
   }
 
   /**
@@ -148,16 +110,23 @@ export class AttendanceCheckInFacade {
 
   /**
    * Check-in hoàn chỉnh với studentId
+   * Sử dụng ADAPTER PATTERN để parse QR token
    */
   async completeCheckIn(
     studentId: string,
     qrToken: string,
     lat: number,
     lng: number,
-    accuracy?: number,
+    _accuracy?: number,
   ): Promise<CheckInResult> {
-    // Parse và lấy session
-    const qrPayload = this.parseQRToken(qrToken);
+    // Parse và lấy session - SỬ DỤNG ADAPTER PATTERN
+    let qrPayload: QRTokenPayload | null;
+    try {
+      qrPayload = this.qrTokenAdapterManager.parse(qrToken);
+    } catch {
+      qrPayload = null;
+    }
+
     if (!qrPayload) {
       throw new BadRequestException('QR token không hợp lệ hoặc đã hết hạn');
     }
@@ -169,7 +138,7 @@ export class AttendanceCheckInFacade {
 
     // Kiểm tra enrollment
     const isEnrolled = session.class.students.some(
-      (s) => s.studentId === studentId,
+      (s: { studentId: string }) => s.studentId === studentId,
     );
     if (!isEnrolled) {
       throw new BadRequestException('Bạn chưa đăng ký lớp này');
@@ -214,7 +183,6 @@ export class AttendanceCheckInFacade {
           status: isInGeofence ? AttendanceStatus.APPROVED : AttendanceStatus.TOO_FAR,
           lat,
           lng,
-          accuracy,
         },
       });
     } else {
@@ -226,7 +194,6 @@ export class AttendanceCheckInFacade {
           status: isInGeofence ? AttendanceStatus.APPROVED : AttendanceStatus.TOO_FAR,
           lat,
           lng,
-          accuracy,
         },
       });
     }
@@ -234,11 +201,10 @@ export class AttendanceCheckInFacade {
     return {
       success: isInGeofence,
       status: attendance.status,
-      message: isInGeofence 
-        ? 'Điểm danh thành công' 
+      message: isInGeofence
+        ? 'Điểm danh thành công'
         : 'Bạn đang ở ngoài vùng điểm danh',
       attendance,
     };
   }
 }
-

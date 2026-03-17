@@ -2,16 +2,16 @@
 
 ## 1. Giới thiệu Pattern
 
-**Decorator** là mẫu thiết kế thuộc nhóm **Structural** (Cấu trúc), cho phép thêm поведение (behavior) vào đối tượng một cách linh hoạt mà không thay đổi class gốc. Decorator cung cấp alternative cho việc subclass để mở rộng chức năng.
+**Decorator** là mẫu thiết kế thuộc nhóm **Structural** (Cấu trúc), cho phép thêm behavior vào đối tượng một cách linh hoạt mà không thay đổi class gốc. Decorator cung cấp alternative cho việc subclass để mở rộng chức năng.
 
 ---
 
 ## 2. Bối cảnh áp dụng
 
 Trong hệ thống QR Attendance, có những method được gọi nhiều lần nhưng dữ liệu ít thay đổi:
-- `findAllClasses()` - Danh sách lớp học hiếm khi thay đổi
-- `getAllSessions()` - Danh sách buổi học trong ngày
-- `getStudentList()` - Danh sách sinh viên
+- `findAll()` - Danh sách lớp học hiếm khi thay đổi
+- `getClassAttendanceReport()` - Báo cáo điểm danh
+- `getAttendanceAnalyticsOverview()` - Thống kê tổng quan
 
 Gọi database mỗi lần tốn kém, cần caching nhưng không muốn sửa code gốc.
 
@@ -24,58 +24,34 @@ Gọi database mỗi lần tốn kém, cần caching nhưng không muốn sửa 
 ```typescript
 @Injectable()
 export class ClassesService {
-  constructor(private prisma: PrismaService) {}
-
-  // Method không có caching
-  async findAll() {
-    return await this.prisma.class.findMany({
-      where: { isActive: true },
-      include: { lecturer: true }
-    });
-  }
-
-  async findById(id: string) {
-    return await this.prisma.class.findUnique({
-      where: { id },
-      include: { lecturer: true }
-    });
-  }
-}
-
-// File sessions.service.ts - lại phải viết caching thủ công
-@Injectable()
-export class SessionsService {
-  private sessionCache = new Map<string, { data: any; expires: number }>();
+  private classCache = new Map<string, { data: any; expires: number }>();
   private readonly CACHE_TTL = 300000; // 5 phút
 
   async findAll() {
-    const cacheKey = 'all_sessions';
-    const cached = this.sessionCache.get(cacheKey);
-    
+    const cacheKey = 'all_classes';
+    const cached = this.classCache.get(cacheKey);
+
     if (cached && cached.expires > Date.now()) {
       return cached.data;
     }
-    
-    const sessions = await this.prisma.session.findMany({
-      where: { isActive: true },
-      include: { class: true }
+
+    const classes = await this.prisma.class.findMany({
+      include: { lecturer: true }
     });
-    
-    this.sessionCache.set(cacheKey, {
-      data: sessions,
+
+    this.classCache.set(cacheKey, {
+      data: classes,
       expires: Date.now() + this.CACHE_TTL
     });
-    
-    return sessions;
-  }
 
-  // Code trùng lặp với ClassesService!
+    return classes;
+  }
 }
 
-// File users.service.ts - lại phải viết caching!
+// File attendance.service.ts - lại phải viết caching thủ công
 @Injectable()
-export class UsersService {
-  private userCache = new Map<string, { data: any; expires: number }>();
+export class AttendanceService {
+  private reportCache = new Map<string, { data: any; expires: number }>();
   // Lại lặp lại code caching...
 }
 ```
@@ -89,27 +65,53 @@ export class UsersService {
 ```typescript
 import { Injectable } from '@nestjs/common';
 
-// ============ In-Memory Cache Store ============
-@Injectable()
-export class InMemoryCacheStore {
-  private cache = new Map<string, { value: any; expires: number }>();
+export interface CacheOptions {
+  ttl: number;
+  key: string;
+}
 
-  get(key: string): any {
+/**
+ * Cache Store Interface
+ */
+export interface CacheStore {
+  get<T>(key: string): T | undefined;
+  set<T>(key: string, value: T, ttl: number): void;
+  delete(key: string): void;
+  deleteByPattern(pattern: string): void;
+  clear(): void;
+}
+
+/**
+ * In-memory Cache Store Implementation (Singleton)
+ */
+@Injectable()
+export class InMemoryCacheStore implements CacheStore {
+  private static instance: InMemoryCacheStore;
+  private cache = new Map<string, { value: any; expiresAt: number }>();
+
+  constructor() {
+    if (InMemoryCacheStore.instance) {
+      return InMemoryCacheStore.instance;
+    }
+    InMemoryCacheStore.instance = this;
+  }
+
+  get<T>(key: string): T | undefined {
     const item = this.cache.get(key);
     if (!item) return undefined;
-    
-    if (Date.now() > item.expires) {
+
+    if (Date.now() > item.expiresAt) {
       this.cache.delete(key);
       return undefined;
     }
-    
-    return item.value;
+
+    return item.value as T;
   }
 
-  set(key: string, value: any, ttlSeconds: number = 300): void {
+  set<T>(key: string, value: T, ttl: number): void {
     this.cache.set(key, {
       value,
-      expires: Date.now() + ttlSeconds * 1000
+      expiresAt: Date.now() + ttl * 1000,
     });
   }
 
@@ -117,104 +119,47 @@ export class InMemoryCacheStore {
     this.cache.delete(key);
   }
 
+  deleteByPattern(pattern: string): void {
+    const regex = new RegExp(pattern);
+    for (const key of this.cache.keys()) {
+      if (regex.test(key)) {
+        this.cache.delete(key);
+      }
+    }
+  }
+
   clear(): void {
     this.cache.clear();
   }
-
-  has(key: string): boolean {
-    const item = this.cache.get(key);
-    if (!item) return false;
-    if (Date.now() > item.expires) {
-      this.cache.delete(key);
-      return false;
-    }
-    return true;
-  }
-
-  size(): number {
-    // Clean expired items first
-    const now = Date.now();
-    let count = 0;
-    for (const [key, item] of this.cache) {
-      if (item.expires > now) count++;
-      else this.cache.delete(key);
-    }
-    return count;
-  }
 }
 
-// ============ Cache Decorator ============
-export function cached(ttlSeconds: number = 300, cacheKeyPrefix?: string) {
+// Global singleton cache store
+const globalCacheStore = new InMemoryCacheStore();
+
+/**
+ * Decorator Factory - Tạo cached version của service method
+ */
+export function Cached(ttlSeconds: number = 300) {
   return function (
     target: any,
     propertyKey: string,
-    descriptor: PropertyDescriptor
+    descriptor: PropertyDescriptor,
   ) {
     const originalMethod = descriptor.value;
-    const cacheStore = new InMemoryCacheStore();
-
-    // Tạo cache key từ arguments
-    const getCacheKey = (args: any[]) => {
-      const prefix = cacheKeyPrefix || `${target.constructor.name}:${propertyKey}`;
-      if (args.length === 0) return prefix;
-      return `${prefix}:${JSON.stringify(args)}`;
-    };
 
     descriptor.value = async function (...args: any[]) {
-      const cacheKey = getCacheKey(args);
+      const cacheKey = `${target.constructor.name}:${propertyKey}:${JSON.stringify(args)}`;
 
-      // Check cache
-      const cachedValue = cacheStore.get(cacheKey);
-      if (cachedValue !== undefined) {
-        return cachedValue;
+      const cached = globalCacheStore.get(cacheKey);
+      if (cached !== undefined) {
+        console.log(`[CACHE HIT] ${cacheKey}`);
+        return cached;
       }
 
-      // Execute original method
+      console.log(`[CACHE MISS] ${cacheKey}`);
       const result = await originalMethod.apply(this, args);
 
-      // Store in cache
-      cacheStore.set(cacheKey, result, ttlSeconds);
-
-      return result;
-    };
-
-    // Thêm method để clear cache
-    descriptor.value.clearCache = function () {
-      const cacheKey = getCacheKey(args);
-      cacheStore.delete(cacheKey);
-    };
-
-    return descriptor;
-  };
-}
-
-// ============ Cache Decorator với Instance ============
-export function cachedWithStore(ttlSeconds: number = 300) {
-  return function (
-    target: any,
-    propertyKey: string,
-    descriptor: PropertyDescriptor
-  ) {
-    const originalMethod = descriptor.value;
-    const cacheStoreKey = Symbol(`cache_${propertyKey}`);
-
-    descriptor.value = async function (...args: any[]) {
-      // Get or create cache store cho instance
-      let cacheStore = (this as any)[cacheStoreKey];
-      if (!cacheStore) {
-        cacheStore = new InMemoryCacheStore();
-        (this as any)[cacheStoreKey] = cacheStore;
-      }
-
-      const cacheKey = `${propertyKey}:${JSON.stringify(args)}`;
-      const cachedValue = cacheStore.get(cacheKey);
-      
-      if (cachedValue !== undefined) {
-        return cachedValue;
-      }
-
-      const result = await originalMethod.apply(this, args);
-      cacheStore.set(cacheKey, result, ttlSeconds);
+      globalCacheStore.set(cacheKey, result, ttlSeconds);
 
       return result;
     };
@@ -223,34 +168,20 @@ export function cachedWithStore(ttlSeconds: number = 300) {
   };
 }
 
-// ============ Redis Cache Decorator (Optional) ============
-export function redisCached(ttlSeconds: number = 300) {
-  return function (
-    target: any,
-    propertyKey: string,
-    descriptor: PropertyDescriptor
-  ) {
-    const originalMethod = descriptor.value;
+/**
+ * Helper function to invalidate cache by pattern
+ */
+export function invalidateCache(pattern: string): void {
+  globalCacheStore.deleteByPattern(pattern);
+  console.log(`[CACHE INVALIDATE] Pattern: ${pattern}`);
+}
 
-    descriptor.value = async function (...args: any[]) {
-      const redis = (this as any).redis; // Assume redis is injected
-      const cacheKey = `cache:${target.constructor.name}:${propertyKey}:${JSON.stringify(args)}`;
-
-      // Try get from Redis
-      const cached = await redis.get(cacheKey);
-      if (cached) {
-        return JSON.parse(cached);
-      }
-
-      // Execute and store
-      const result = await originalMethod.apply(this, args);
-      await redis.setex(cacheKey, ttlSeconds, JSON.stringify(result));
-
-      return result;
-    };
-
-    return descriptor;
-  };
+/**
+ * Helper function to clear all cache
+ */
+export function clearAllCache(): void {
+  globalCacheStore.clear();
+  console.log(`[CACHE CLEAR] All cache cleared`);
 }
 ```
 
@@ -258,66 +189,70 @@ export function redisCached(ttlSeconds: number = 300) {
 
 ## 5. Cách sử dụng
 
+**File:** `src/classes/classes.service.ts`
+
 ```typescript
-// Trong ClassesService
-import { cached, InMemoryCacheStore } from '../decorators/cache-decorator';
+import { Cached, invalidateCache } from '../common/decorators/cache-decorator';
 
 @Injectable()
 export class ClassesService {
-  private cacheStore = new InMemoryCacheStore();
+  constructor(private prisma: PrismaService) {}
 
-  @cached(300) // Cache 5 phút
+  @Cached(300) // Cache 5 phút
   async findAll() {
-    return await this.prisma.class.findMany({
-      where: { isActive: true },
-      include: { lecturer: true }
+    return this.prisma.class.findMany({
+      include: {
+        sessions: { orderBy: { createdAt: 'desc' } },
+        _count: { select: { students: true } },
+        lecturer: { select: { id: true, fullName: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
-  @cached(60) // Cache 1 phút
-  async findById(id: string) {
-    return await this.prisma.class.findUnique({
+  @Cached(300) // Cache 5 phút
+  async findOne(id: string) {
+    return this.prisma.class.findUnique({
       where: { id },
-      include: { lecturer: true }
+      include: { students: true, sessions: true, lecturer: true },
     });
   }
 
-  // Method để clear cache khi có thay đổi
-  @cached(300)
-  async findAll() {
-    return await this.prisma.class.findMany({ where: { isActive: true } });
-  }
-
-  async create(dto: CreateClassDto) {
-    const result = await this.prisma.class.create({ data: dto });
-    // Clear cache sau khi tạo mới
-    this.clearCache();
+  async create(createClassDto: CreateClassDto) {
+    const result = await this.prisma.class.create({ data: createClassDto });
+    // Invalidate cache after create
+    invalidateCache('ClassesService:findAll');
+    invalidateCache('ClassesService:findOne');
     return result;
   }
-
-  private clearCache() {
-    this.cacheStore.clear();
-  }
 }
+```
 
-// Trong SessionsService
+**File:** `src/attendance/attendance.service.ts`
+
+```typescript
+import { Cached, invalidateCache } from '../common/decorators/cache-decorator';
+
 @Injectable()
-export class SessionsService {
-  @cached(300) // Cache 5 phút
-  async findAll() {
-    return await this.prisma.session.findMany({
-      where: { isActive: true },
-      include: { class: true }
-    });
+export class AttendanceService {
+  @Cached(120) // Cache 2 phút
+  async getClassAttendanceReport(classId: string) {
+    // ... logic phức tạp
   }
 
-  @cachedWithStore(600) // Cache riêng cho mỗi instance
-  async getSessionsByDate(date: string) {
-    return await this.prisma.session.findMany({
-      where: { 
-        startTime: { gte: new Date(date) }
-      }
-    });
+  @Cached(60) // Cache 1 phút
+  async getAllClassesAttendanceReport() {
+    // ... logic phức tạp
+  }
+
+  @Cached(60) // Cache 1 phút
+  async getAttendanceAnalyticsOverview() {
+    // ... logic phức tạp
+  }
+
+  private invalidateAttendanceCaches() {
+    invalidateCache('AttendanceService:.*Report');
+    invalidateCache('AttendanceService:.*Analytics');
   }
 }
 ```
@@ -333,7 +268,7 @@ export class SessionsService {
 - Vi phạm DRY (Don't Repeat Yourself)
 
 ### Giải pháp Decorator:
-- Tạo decorator @cached() có thể tái sử dụng
+- Tạo decorator @Cached() có thể tái sử dụng
 - Áp dụng cho bất kỳ method nào
 - Không sửa code gốc
 
@@ -344,9 +279,9 @@ export class SessionsService {
 | Tiêu chí | Trước khi dùng Decorator | Sau khi dùng Decorator |
 |----------|-------------------------|----------------------|
 | **Code trùng lặp** | Nhiều | Không có |
-| **Tái sử dụng** | Không | Có (@cached) |
+| **Tái sử dụng** | Không | Có (@Cached) |
 | **Sửa code gốc** | Cần | Không cần |
-| **Thêm/bớt cache** | Sửa nhiều nơi | Thêm/xóa @cached |
+| **Thêm/bớt cache** | Sửa nhiều nơi | Thêm/xóa @Cached |
 
 ### Các lợi ích cụ thể:
 
@@ -368,32 +303,48 @@ export class SessionsService {
 
 ```mermaid
 classDiagram
-    class ClassesService {
-        +findAll()
-        +findById(id)
-        +create(dto)
+    class <<interface>> CacheStore {
+        +get~T~(key: string): T | undefined
+        +set~T~(key: string, value: T, ttl: number): void
+        +delete(key: string): void
+        +deleteByPattern(pattern: string): void
+        +clear(): void
     }
-    
-    class SessionsService {
-        +findAll()
-        +getSessionsByDate(date)
-    }
-    
-    class <<decorator>> cached {
-        +ttlSeconds: number
-        +execute(target, propertyKey, descriptor)
-    }
-    
+
     class InMemoryCacheStore {
-        +get(key): any
-        +set(key, value, ttl)
-        +delete(key)
-        +clear()
+        -static instance: InMemoryCacheStore
+        -cache: Map~string, object~
+        +get~T~(key: string): T | undefined
+        +set~T~(key: string, value: T, ttl: number): void
+        +delete(key: string): void
+        +deleteByPattern(pattern: string): void
+        +clear(): void
     }
-    
-    cached --> InMemoryCacheStore
-    cached ..> ClassesService
-    cached ..> SessionsService
+
+    CacheStore <|.. InMemoryCacheStore
+
+    class Cached {
+        <<decorator>>
+        +ttlSeconds: number
+        +execute(target, propertyKey, descriptor): PropertyDescriptor
+    }
+
+    Cached --> InMemoryCacheStore : uses globalCacheStore
+
+    class ClassesService {
+        +findAll(): Promise~Class[]~
+        +findOne(id: string): Promise~Class~
+        +create(dto: CreateClassDto): Promise~Class~
+    }
+
+    class AttendanceService {
+        +getClassAttendanceReport(classId: string): Promise~object~
+        +getAllClassesAttendanceReport(): Promise~object[]~
+        +getAttendanceAnalyticsOverview(): Promise~object~
+    }
+
+    Cached ..> ClassesService : decorates findAll, findOne
+    Cached ..> AttendanceService : decorates reports
 ```
 
 ---
@@ -408,4 +359,3 @@ Decorator Pattern giúp thêm chức năng mà không sửa code gốc:
 - ✅ Tái sử dụng được
 
 **Khuyến nghị:** Sử dụng Decorator khi cần thêm behavior (logging, caching, timing...) cho nhiều method mà không muốn sửa code gốc.
-
