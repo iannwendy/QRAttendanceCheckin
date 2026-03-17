@@ -5,16 +5,18 @@ services:
     image: postgres:16
     container_name: qr-attendance-db
     restart: unless-stopped
+    env_file:
+      - .env.production
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-app}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_secure_password}
-      POSTGRES_DB: ${POSTGRES_DB:-attendance}
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: pass123
+      POSTGRES_DB: attendance
     ports:
       - "5432:5432"
     volumes:
       - dbdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app}"]
+      test: ["CMD-SHELL", "pg_isready -U app"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -28,19 +30,15 @@ services:
     container_name: qr-attendance-backend
     restart: unless-stopped
     ports:
-      - "${BACKEND_PORT:-8080}:8080"
+      - "8080:8080"
     environment:
-      # Use DATABASE_URL from .env.production if set, otherwise construct from individual vars
-      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-change_me_secure_password}@db:5432/${POSTGRES_DB:-attendance}}
-      POSTGRES_USER: ${POSTGRES_USER:-app}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_secure_password}
-      POSTGRES_DB: ${POSTGRES_DB:-attendance}
-      JWT_SECRET: ${JWT_SECRET:-change_me_jwt_secret}
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+      DATABASE_URL: postgresql://app:pass123@db:5432/attendance
+      JWT_SECRET: pass123
+      FRONTEND_URL: https://qrattendance.xyz
       PORT: 8080
-      QR_ROTATE_SECONDS: ${QR_ROTATE_SECONDS:-180}
-      OTP_STEP_SECONDS: ${OTP_STEP_SECONDS:-60}
-      GEOFENCE_RADIUS_M_DEFAULT: ${GEOFENCE_RADIUS_M_DEFAULT:-100}
+      QR_ROTATE_SECONDS: 180
+      OTP_STEP_SECONDS: 60
+      GEOFENCE_RADIUS_M_DEFAULT: 100
       UPLOAD_DIR: ./uploads
     volumes:
       - ./backend/uploads:/app/uploads
@@ -61,7 +59,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.prod
       args:
-        VITE_API_BASE: ${VITE_API_BASE:-http://localhost:8080}
+        VITE_API_BASE: https://qrattendance.xyz/api
     container_name: qr-attendance-frontend
     restart: unless-stopped
     # Expose on port 3000 instead of 80 - Nginx will proxy to this
