@@ -9,12 +9,14 @@ import {
   AttendanceAnalyticsObserver,
   AttendanceSubject,
 } from './observers/attendance-observer';
+import { AttendanceCheckInFacade } from './facades/attendance-checkin.facade';
 
 @Module({
   imports: [SessionsModule, EvidenceModule],
   controllers: [AttendanceController],
   providers: [
     AttendanceService,
+    AttendanceCheckInFacade,
     AttendanceLoggingObserver,
     AttendanceAnalyticsObserver,
     {

@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 
@@ -24,6 +25,7 @@ interface QRSessionContext {
   } | null;
 }
 
+@Injectable()
 export class QRTokenService {
   private nonceMap = new Map<string, { expiresAt: number }>();
   private readonly qrRotateSeconds: number;

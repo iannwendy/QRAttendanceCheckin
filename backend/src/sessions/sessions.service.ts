@@ -11,18 +11,13 @@ import { QuickCreateSessionDto } from './dto/quick-create-session.dto';
 
 @Injectable()
 export class SessionsService {
-  private qrTokenService: QRTokenService;
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
     private sessionBuilderDirector: SessionBuilderDirector,
-  ) {
-    this.qrTokenService = new QRTokenService(
-      this.jwtService,
-      this.configService,
-    );
-  }
+    private qrTokenService: QRTokenService,
+  ) {}
 
   async create(createSessionDto: CreateSessionDto) {
     const result = await this.sessionBuilderDirector.buildStandardSession(createSessionDto);
