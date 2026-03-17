@@ -5,8 +5,6 @@ services:
     image: postgres:16
     container_name: qr-attendance-db
     restart: unless-stopped
-    env_file:
-      - .env.production
     environment:
       POSTGRES_USER: app
       POSTGRES_PASSWORD: pass123
