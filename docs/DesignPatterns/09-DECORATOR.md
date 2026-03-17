@@ -245,7 +245,9 @@ export class AttendanceService {
     // ... logic phức tạp
   }
 
-  @Cached(60) // Cache 1 phút
+  // NOTE: Không dùng @Cached vì dữ liệu live sessions cần real-time
+  // Bug từng gặp: @Cached(60) khiến admin dashboard không cập nhật
+  // live sessions → đã bỏ cache và thêm polling ở frontend
   async getAttendanceAnalyticsOverview() {
     // ... logic phức tạp
   }
@@ -259,7 +261,22 @@ export class AttendanceService {
 
 ---
 
-## 6. Giải thích tại sao áp dụng Decorator
+## 6. ⚠️ Lưu ý quan trọng: Khi nào KHÔNG nên dùng @Cached
+
+### Bug đã gặp:
+- **Vấn đề:** `getAttendanceAnalyticsOverview()` có `@Cached(60)` khiến admin dashboard không cập nhật live sessions khi lecturer tạo lớp mới
+- **Root cause:** Cache 60s trả về dữ liệu cũ, không thấy session mới tạo
+- **Giải pháp:**
+  1. Backend: Bỏ `@Cached` trên method trả về dữ liệu real-time
+  2. Frontend: Thêm polling (30s) để refresh dữ liệu
+
+### Nguyên tắc áp dụng @Cached:
+- ✅ Dùng cho: dữ liệu ít thay đổi (danh sách lớp, báo cáo cũ)
+- ❌ Không dùng cho: dữ liệu real-time (live sessions, attendance đang diễn ra)
+
+---
+
+## 7. Giải thích tại sao áp dụng Decorator
 
 ### Vấn đề gặp phải:
 - Code caching lặp lại trong nhiều service
@@ -340,16 +357,39 @@ classDiagram
     class AttendanceService {
         +getClassAttendanceReport(classId: string): Promise~object~
         +getAllClassesAttendanceReport(): Promise~object[]~
-        +getAttendanceAnalyticsOverview(): Promise~object~
+        +getAttendanceAnalyticsOverview(): Promise~object~ <<no cache>>
     }
 
     Cached ..> ClassesService : decorates findAll, findOne
-    Cached ..> AttendanceService : decorates reports
+    Cached ..> AttendanceService : decorates reports (except getAttendanceAnalyticsOverview)
 ```
 
 ---
 
-## 9. Kết luận
+## 9. ✅ Bug đã fix liên quan Decorator
+
+### Vấn đề:
+- Admin dashboard không cập nhật "Buổi đang diễn ra" khi lecturer tạo session mới
+- Nguyên nhân: `@Cached(60)` trên `getAttendanceAnalyticsOverview()`
+
+### Giải pháp:
+1. **Backend:** Bỏ `@Cached` trên `getAttendanceAnalyticsOverview()`
+2. **Frontend:** Thêm polling 30s cho AdminReports.tsx
+
+### Code frontend polling:
+```typescript
+const POLLING_INTERVAL = 30000;
+
+useEffect(() => {
+  fetchAnalytics();
+  pollingRef.current = setInterval(() => fetchAnalytics(true), POLLING_INTERVAL);
+  return () => clearInterval(pollingRef.current);
+}, []);
+```
+
+---
+
+## 10. Kết luận
 
 Decorator Pattern giúp thêm chức năng mà không sửa code gốc:
 
@@ -357,5 +397,6 @@ Decorator Pattern giúp thêm chức năng mà không sửa code gốc:
 - ✅ Thêm/bớt caching dễ dàng
 - ✅ Không sửa code gốc
 - ✅ Tái sử dụng được
+- ⚠️ Cẩn thận với dữ liệu real-time - KHÔNG cache!
 
 **Khuyến nghị:** Sử dụng Decorator khi cần thêm behavior (logging, caching, timing...) cho nhiều method mà không muốn sửa code gốc.

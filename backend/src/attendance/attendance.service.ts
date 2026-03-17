@@ -300,7 +300,7 @@ export class AttendanceService {
     return allReports;
   }
 
-  @Cached(60)
+  // NOTE: Không dùng @Cached vì dữ liệu live sessions cần real-time
   async getAttendanceAnalyticsOverview() {
     const now = new Date();
     const [allReports, liveSessions] = await Promise.all([

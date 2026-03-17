@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import api from '../store/api';
 import { exportToCSV } from '../utils/exportCSV';
 import './AdminReports.css';
+
+const POLLING_INTERVAL = 30000; // 30 giây
 
 interface LecturerInfo {
   id: string | null;
@@ -72,9 +74,44 @@ function AdminReports() {
     'class',
   );
 
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchAnalytics = useCallback(async (silent = false) => {
+    try {
+      if (!silent) {
+        setAnalyticsLoading(true);
+      }
+      setAnalyticsError('');
+      const response = await api.get('/attendance/analytics/overview');
+      setAnalytics(response.data);
+    } catch (err: any) {
+      console.error('Failed to load analytics overview:', err);
+      const errorMessage =
+        err.response?.data?.message || 'Không thể tải thống kê';
+      if (!silent) {
+        setAnalyticsError(errorMessage);
+      }
+    } finally {
+      if (!silent) {
+        setAnalyticsLoading(false);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     fetchAnalytics();
-  }, []);
+
+    // Polling mỗi 30s cho dữ liệu real-time
+    pollingRef.current = setInterval(() => {
+      fetchAnalytics(true);
+    }, POLLING_INTERVAL);
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+    };
+  }, [fetchAnalytics]);
 
   const handleLogout = () => {
     logout();
@@ -85,15 +122,14 @@ function AdminReports() {
     try {
       setLoading(true);
       const response = await api.get('/attendance/report/all');
-      
+
       if (!response.data || !Array.isArray(response.data) || response.data.length === 0) {
         alert('Không có dữ liệu báo cáo để xuất.');
         return;
       }
 
       const allRows: any[] = [];
-      
-      // Add header row
+
       allRows.push({
         'Lớp học': 'Lớp học',
         'MSSV': 'MSSV',
@@ -104,7 +140,6 @@ function AdminReports() {
         'Tỷ lệ chuyên cần (%)': 'Tỷ lệ chuyên cần (%)',
       });
 
-      // Add data rows for all classes
       response.data.forEach((classReport: any) => {
         if (classReport.students && Array.isArray(classReport.students)) {
           classReport.students.forEach((student: any) => {
@@ -134,22 +169,6 @@ function AdminReports() {
       alert(`Không thể xuất báo cáo: ${errorMessage}`);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchAnalytics = async () => {
-    try {
-      setAnalyticsLoading(true);
-      setAnalyticsError('');
-      const response = await api.get('/attendance/analytics/overview');
-      setAnalytics(response.data);
-    } catch (err: any) {
-      console.error('Failed to load analytics overview:', err);
-      const errorMessage =
-        err.response?.data?.message || 'Không thể tải thống kê';
-      setAnalyticsError(errorMessage);
-    } finally {
-      setAnalyticsLoading(false);
     }
   };
 
