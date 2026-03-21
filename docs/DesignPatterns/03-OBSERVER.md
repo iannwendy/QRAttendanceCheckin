@@ -349,14 +349,14 @@ classDiagram
         -observers: AttendanceObserver[]
         +attach(observer: AttendanceObserver): void
         +detach(observer: AttendanceObserver): void
-        +notify(event: AttendanceEvent): Promise~void~
+        +notify(event: AttendanceEvent): void
     }
 
     class <<interface>> AttendanceObserver {
-        +onAttendanceChange(event: AttendanceEvent): Promise~void~
-        +onAttendanceApproved(event: AttendanceEvent): Promise~void~
-        +onAttendanceRejected(event: AttendanceEvent): Promise~void~
-        +onAttendancePending(event: AttendanceEvent): Promise~void~
+        +onAttendanceChange(event: AttendanceEvent): void
+        +onAttendanceApproved(event: AttendanceEvent): void
+        +onAttendanceRejected(event: AttendanceEvent): void
+        +onAttendancePending(event: AttendanceEvent): void
     }
 
     AttendanceSubject --> AttendanceObserver
@@ -367,18 +367,18 @@ classDiagram
 
     class AttendanceLoggingObserver {
         -logger: Logger
-        +onAttendanceChange(event: AttendanceEvent): Promise~void~
-        +onAttendanceApproved(event: AttendanceEvent): Promise~void~
-        +onAttendanceRejected(event: AttendanceEvent): Promise~void~
-        +onAttendancePending(event: AttendanceEvent): Promise~void~
+        +onAttendanceChange(event: AttendanceEvent): void
+        +onAttendanceApproved(event: AttendanceEvent): void
+        +onAttendanceRejected(event: AttendanceEvent): void
+        +onAttendancePending(event: AttendanceEvent): void
     }
 
     class AttendanceAnalyticsObserver {
         -stats: {total, approved, rejected, pending}
-        +onAttendanceChange(event: AttendanceEvent): Promise~void~
-        +onAttendanceApproved(event: AttendanceEvent): Promise~void~
-        +onAttendanceRejected(event: AttendanceEvent): Promise~void~
-        +onAttendancePending(event: AttendanceEvent): Promise~void~
+        +onAttendanceChange(event: AttendanceEvent): void
+        +onAttendanceApproved(event: AttendanceEvent): void
+        +onAttendanceRejected(event: AttendanceEvent): void
+        +onAttendancePending(event: AttendanceEvent): void
         +getStats(): object
     }
 

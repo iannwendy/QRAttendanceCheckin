@@ -317,7 +317,7 @@ classDiagram
     }
 
     class AttendanceResponseFactory {
-        +static builders: Map~AttendanceStatus, AttendanceResponseBuilder~
+        +static builders: Map
         +static create(status, data): AttendanceResponse
         +static registerBuilder(status, builder)
     }

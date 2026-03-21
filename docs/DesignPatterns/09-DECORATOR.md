@@ -321,8 +321,8 @@ export class AttendanceService {
 ```mermaid
 classDiagram
     class <<interface>> CacheStore {
-        +get~T~(key: string): T | undefined
-        +set~T~(key: string, value: T, ttl: number): void
+        +get(key: string): any
+        +set(key: string, value: any, ttl: number): void
         +delete(key: string): void
         +deleteByPattern(pattern: string): void
         +clear(): void
@@ -330,9 +330,9 @@ classDiagram
 
     class InMemoryCacheStore {
         -static instance: InMemoryCacheStore
-        -cache: Map~string, object~
-        +get~T~(key: string): T | undefined
-        +set~T~(key: string, value: T, ttl: number): void
+        -cache: Map
+        +get(key: string): any
+        +set(key: string, value: any, ttl: number): void
         +delete(key: string): void
         +deleteByPattern(pattern: string): void
         +clear(): void
@@ -349,15 +349,15 @@ classDiagram
     Cached --> InMemoryCacheStore : uses globalCacheStore
 
     class ClassesService {
-        +findAll(): Promise~Class[]~
-        +findOne(id: string): Promise~Class~
-        +create(dto: CreateClassDto): Promise~Class~
+        +findAll(): any
+        +findOne(id: string): any
+        +create(dto: CreateClassDto): any
     }
 
     class AttendanceService {
-        +getClassAttendanceReport(classId: string): Promise~object~
-        +getAllClassesAttendanceReport(): Promise~object[]~
-        +getAttendanceAnalyticsOverview(): Promise~object~ <<no cache>>
+        +getClassAttendanceReport(classId: string): any
+        +getAllClassesAttendanceReport(): any
+        +getAttendanceAnalyticsOverview(): any <<no cache>>
     }
 
     Cached ..> ClassesService : decorates findAll, findOne

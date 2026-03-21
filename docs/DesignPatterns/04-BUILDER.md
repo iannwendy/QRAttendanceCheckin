@@ -460,24 +460,24 @@ classDiagram
         +setPublicCode(): this
         +validate(): this
         +generateOTP(): this
-        +validatePublicCodeUnique(): Promise~this~
-        +createSession(): Promise~this~
-        +autoEnrollStudents(): Promise~this~
+        +validatePublicCodeUnique(): this
+        +createSession(): this
+        +autoEnrollStudents(): this
         +getResult(): SessionBuildResult
-        +build(): Promise~SessionBuildResult~
+        +build(): SessionBuildResult
         +reset(): this
     }
 
     class SessionBuilderDirector {
         -prisma: PrismaService
         -userPrototypeManager: UserPrototypeManager
-        +buildStandardSession(dto: CreateSessionDto): Promise~SessionBuildResult~
-        +buildQuickSession(dto: QuickCreateSessionDto): Promise~SessionBuildResult~
+        +buildStandardSession(dto: CreateSessionDto): SessionBuildResult
+        +buildQuickSession(dto: QuickCreateSessionDto): SessionBuildResult
     }
 
     class SessionsService {
-        +create(createSessionDto: CreateSessionDto): Promise~Session~
-        +createQuick(dto: QuickCreateSessionDto): Promise~Session~
+        +create(createSessionDto: CreateSessionDto): Session
+        +createQuick(dto: QuickCreateSessionDto): Session
     }
 
     SessionsService --> SessionBuilderDirector

@@ -239,7 +239,6 @@ classDiagram
     }
 
     ConfigManager ..> AppConfig : returns
-    ConfigManager : "1" o-- "1" NestConfigService : wraps
 
     class SessionsService {
         -configManager: ConfigManager

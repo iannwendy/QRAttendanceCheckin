@@ -281,9 +281,8 @@ export class UsersService {
 
 ```mermaid
 classDiagram
-    class Cloneable~T~ {
-        <<interface>>
-        +clone(): T
+    class <<interface>> Cloneable {
+        +clone(): Cloneable
     }
 
     class UserPrototype {
@@ -304,19 +303,19 @@ classDiagram
         +static adminTemplate(): UserPrototype
     }
 
-    Cloneable~UserPrototype~ <|.. UserPrototype
+    Cloneable <|.. UserPrototype
 
     class UserPrototypeManager {
         -prisma: PrismaService
-        +createBatchStudents(studentCodes: string[]): Promise~number~
-        +createDemoStudents(): Promise~number~
+        +createBatchStudents(studentCodes: string[]): number
+        +createDemoStudents(): number
     }
 
     class UsersService {
         -prisma: PrismaService
         -userPrototypeManager: UserPrototypeManager
-        +createUserFromPrototype(template, email, fullName, studentCode): Promise~User~
-        +createDemoDataFromPrototype(): Promise~object~
+        +createUserFromPrototype(template, email, fullName, studentCode): User
+        +createDemoDataFromPrototype(): object
     }
 
     UsersService --> UserPrototype : uses template
