@@ -320,7 +320,8 @@ export class AttendanceService {
 
 ```mermaid
 classDiagram
-    class <<interface>> CacheStore {
+    class CacheStore {
+        <<interface>>
         +get(key: string): any
         +set(key: string, value: any, ttl: number): void
         +delete(key: string): void
@@ -342,27 +343,26 @@ classDiagram
 
     class Cached {
         <<decorator>>
-        +ttlSeconds: number
         +execute(target, propertyKey, descriptor): PropertyDescriptor
     }
 
     Cached --> InMemoryCacheStore : uses globalCacheStore
 
     class ClassesService {
-        +findAll(): any
-        +findOne(id: string): any
-        +create(dto: CreateClassDto): any
+        +findAll(): Class[]
+        +findOne(id: string): Class
+        +create(dto: CreateClassDto): Class
     }
 
     class AttendanceService {
-        +getClassAttendanceReport(classId: string): any
-        +getAllClassesAttendanceReport(): any
-        +getAttendanceAnalyticsOverview(): any <<no cache>>
+        +getClassAttendanceReport(classId: string): object
+        +getAllClassesAttendanceReport(): object[]
+        +getAttendanceAnalyticsOverview(): object
+        -invalidateAttendanceCaches()
     }
 
     Cached ..> ClassesService : decorates findAll, findOne
-    Cached ..> AttendanceService : decorates reports (except getAttendanceAnalyticsOverview)
-```
+    Cached ..> AttendanceService : decorates reports
 
 ---
 

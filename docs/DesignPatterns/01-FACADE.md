@@ -342,14 +342,21 @@ classDiagram
 
     class AttendanceCheckInFacade {
         -prisma: PrismaService
-        -qrTokenService: QRTokenService
+        -qrTokenAdapterManager: QRTokenAdapterManager
         +completeCheckIn()
-        -parseQRToken()
-        -getSession()
     }
 
-    class QRTokenService {
-        +verifyQRToken()
+    class QRTokenAdapterManager {
+        +parse(token: string): QRTokenPayload
+    }
+
+    class QRTokenPayload {
+        +sessionId: string
+        +nonce: string
+        +iat: number
+        +exp: number
+        +type: string
+        +ver: number
     }
 
     class PrismaService {
@@ -364,9 +371,10 @@ classDiagram
 
     AttendanceController --> AttendanceService
     AttendanceService --> AttendanceCheckInFacade
-    AttendanceCheckInFacade --> QRTokenService
+    AttendanceCheckInFacade --> QRTokenAdapterManager
     AttendanceCheckInFacade --> PrismaService
     AttendanceService --> AttendanceResponseFactory
+    QRTokenAdapterManager ..> QRTokenPayload : returns
 ```
 
 ---

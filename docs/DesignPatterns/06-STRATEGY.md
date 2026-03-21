@@ -306,10 +306,21 @@ classDiagram
         +authenticate(username): AuthResult
     }
 
-    class <<interface>> AuthStrategy {
+    class AuthStrategy {
+        <<interface>>
         +getName(): string
         +canHandle(username): boolean
         +authenticate(username): AuthResult
+    }
+
+    class AuthResult {
+        +user: User
+        +userType: string
+    }
+
+    class UsersService {
+        +findByRole(role: string): User
+        +findByStudentCode(code: string): User
     }
 
     AuthController --> AuthService
@@ -319,6 +330,15 @@ classDiagram
     AuthStrategy <|.. AdminAuthStrategy
     AuthStrategy <|.. LecturerAuthStrategy
     AuthStrategy <|.. StudentAuthStrategy
+
+    AdminAuthStrategy --> UsersService
+    LecturerAuthStrategy --> UsersService
+    StudentAuthStrategy --> UsersService
+
+    AuthStrategyContext ..> AuthResult : returns
+    AdminAuthStrategy ..> AuthResult : returns
+    LecturerAuthStrategy ..> AuthResult : returns
+    StudentAuthStrategy ..> AuthResult : returns
 
     class AdminAuthStrategy {
         -usersService: UsersService

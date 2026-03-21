@@ -324,12 +324,12 @@ classDiagram
         +parse(token: string): QRTokenPayload
     }
 
-    class <<interface>> QRTokenAdapter {
+    class QRTokenAdapter {
+        <<interface>>
         +canHandle(token: string): boolean
-        +parse(token: string): QRTokenPayload | null
+        +parse(token: string): QRTokenPayload
     }
 
-    QRTokenAdapterManager --> QRTokenAdapter
     QRTokenAdapterManager "1" *-- "*" QRTokenAdapter : manages
 
     QRTokenAdapter <|.. JWTTokenAdapter
@@ -340,18 +340,18 @@ classDiagram
         -jwtService: JwtService
         -configService: ConfigService
         +canHandle(token: string): boolean
-        +parse(token: string): QRTokenPayload | null
+        +parse(token: string): QRTokenPayload
     }
 
     class JSONTokenAdapter {
         +canHandle(token: string): boolean
-        +parse(token: string): QRTokenPayload | null
+        +parse(token: string): QRTokenPayload
     }
 
     class RawJWTPayloadAdapter {
         -jwtService: JwtService
         +canHandle(token: string): boolean
-        +parse(token: string): QRTokenPayload | null
+        +parse(token: string): QRTokenPayload
     }
 
     class QRTokenPayload {
@@ -363,8 +363,11 @@ classDiagram
         +ver: number
         +publicCode?: string
         +className?: string
+        +classCode?: string
+        +sessionTitle?: string
     }
 
+    QRTokenAdapterManager ..> QRTokenPayload : returns
     QRTokenAdapter ..> QRTokenPayload : returns
 ```
 

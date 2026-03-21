@@ -352,21 +352,20 @@ classDiagram
         +notify(event: AttendanceEvent): void
     }
 
-    class <<interface>> AttendanceObserver {
+    class AttendanceObserver {
+        <<interface>>
         +onAttendanceChange(event: AttendanceEvent): void
         +onAttendanceApproved(event: AttendanceEvent): void
         +onAttendanceRejected(event: AttendanceEvent): void
         +onAttendancePending(event: AttendanceEvent): void
     }
 
-    AttendanceSubject --> AttendanceObserver
     AttendanceSubject "1" *-- "*" AttendanceObserver : manages
 
     AttendanceObserver <|.. AttendanceLoggingObserver
     AttendanceObserver <|.. AttendanceAnalyticsObserver
 
     class AttendanceLoggingObserver {
-        -logger: Logger
         +onAttendanceChange(event: AttendanceEvent): void
         +onAttendanceApproved(event: AttendanceEvent): void
         +onAttendanceRejected(event: AttendanceEvent): void
@@ -374,7 +373,7 @@ classDiagram
     }
 
     class AttendanceAnalyticsObserver {
-        -stats: {total, approved, rejected, pending}
+        -stats: object
         +onAttendanceChange(event: AttendanceEvent): void
         +onAttendanceApproved(event: AttendanceEvent): void
         +onAttendanceRejected(event: AttendanceEvent): void
@@ -386,7 +385,7 @@ classDiagram
         +attendanceId: string
         +studentId: string
         +sessionId: string
-        +oldStatus: AttendanceStatus | null
+        +oldStatus: AttendanceStatus
         +newStatus: AttendanceStatus
         +method: AttendanceMethod
         +timestamp: Date

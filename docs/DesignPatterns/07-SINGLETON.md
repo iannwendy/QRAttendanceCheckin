@@ -218,7 +218,7 @@ classDiagram
     class ConfigManager {
         -static instance: ConfigManager
         -config: NestConfigService
-        -private constructor(config: NestConfigService)
+        +constructor(config: NestConfigService)
         +static getInstance(config?: NestConfigService): ConfigManager
         +getJwtSecret(): string
         +getQrRotateSeconds(): number
@@ -238,7 +238,19 @@ classDiagram
         +nodeEnv: string
     }
 
+    class NestConfigService {
+        +get(key: string): string
+    }
+
+    class QRTokenService {
+        -configService: NestConfigService
+        +generateQRToken()
+        +signQRToken()
+        +verifyQRToken()
+    }
+
     ConfigManager ..> AppConfig : returns
+    ConfigManager --> NestConfigService : wraps
 
     class SessionsService {
         -configManager: ConfigManager
@@ -255,6 +267,7 @@ classDiagram
     SessionsService --> ConfigManager : uses
     AuthService --> ConfigManager : uses
     AttendanceService --> ConfigManager : uses
+    QRTokenService --> NestConfigService : uses
 ```
 
 ---

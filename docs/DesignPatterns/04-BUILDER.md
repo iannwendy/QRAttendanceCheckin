@@ -480,9 +480,6 @@ classDiagram
         +createQuick(dto: QuickCreateSessionDto): Session
     }
 
-    SessionsService --> SessionBuilderDirector
-    SessionBuilderDirector --> SessionBuilder : creates
-
     class SessionBuildResult {
         +session: Session
         +studentCount: number
@@ -490,7 +487,22 @@ classDiagram
         +validationErrors: string[]
     }
 
+    class PrismaService {
+        +session.findUnique()
+        +attendance.createMany()
+    }
+
+    class UserPrototypeManager {
+        +createBatchStudents(codes: string[]): number
+    }
+
+    SessionsService --> SessionBuilderDirector
+    SessionsService ..> SessionBuildResult : uses
+    SessionBuilderDirector --> SessionBuilder : creates
+    SessionBuilderDirector ..> SessionBuildResult : returns
     SessionBuilder ..> SessionBuildResult : returns
+    SessionBuilder --> PrismaService
+    SessionBuilder --> UserPrototypeManager
 ```
 
 ---

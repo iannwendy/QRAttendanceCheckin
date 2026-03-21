@@ -281,7 +281,8 @@ export class UsersService {
 
 ```mermaid
 classDiagram
-    class <<interface>> Cloneable {
+    class Cloneable {
+        <<interface>>
         +clone(): Cloneable
     }
 
@@ -318,9 +319,13 @@ classDiagram
         +createDemoDataFromPrototype(): object
     }
 
-    UsersService --> UserPrototype : uses template
+    class PrismaService {
+        +user.createMany()
+    }
+
     UsersService --> UserPrototypeManager : delegates batch
-    UserPrototypeManager --> UserPrototype : clones
+    UserPrototypeManager --> UserPrototype : creates batch
+    UserPrototypeManager --> PrismaService
 ```
 
 ---

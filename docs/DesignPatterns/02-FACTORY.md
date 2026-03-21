@@ -322,11 +322,22 @@ classDiagram
         +static registerBuilder(status, builder)
     }
 
-    class <<interface>> AttendanceResponseBuilder {
+    class AttendanceResponseBuilder {
+        <<interface>>
         +build(data): AttendanceResponse
     }
 
-    AttendanceResponseFactory --> AttendanceResponseBuilder
+    class AttendanceResponse {
+        +success: boolean
+        +status: AttendanceStatus
+        +message: string
+        +attendanceId: string
+        +method: AttendanceMethod
+        +timestamp: Date
+    }
+
+    AttendanceResponseFactory ..> AttendanceResponse : returns
+    AttendanceResponseBuilder ..> AttendanceResponse : returns
 
     AttendanceResponseBuilder <|.. ApprovedAttendanceBuilder
     AttendanceResponseBuilder <|.. PendingAttendanceBuilder
