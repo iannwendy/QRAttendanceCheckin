@@ -7,8 +7,8 @@ A QR-based attendance system with GPS verification, OTP fallback, and watermarke
 ## Truy cập dự án
 
 - **Trang web**: http://qrattendance.xyz
-- **Backend API**: http://localhost:8080
-- **Health check**: http://localhost:8080/health
+- **Backend API**: http://qrattendance.xyz:8080
+- **Health check**: http://qrattendance.xyz:8080/health
 
 ## Architecture
 
