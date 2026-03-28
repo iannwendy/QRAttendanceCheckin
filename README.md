@@ -4,6 +4,12 @@ A QR-based attendance system with GPS verification, OTP fallback, and watermarke
 
 ![Demo](docs/demo.png)
 
+## Truy cập dự án
+
+- **Trang web**: http://qrattendance.xyz
+- **Backend API**: http://localhost:8080
+- **Health check**: http://localhost:8080/health
+
 ## Architecture
 
 - **Backend**: NestJS, Prisma ORM, PostgreSQL
@@ -21,6 +27,8 @@ A QR-based attendance system with GPS verification, OTP fallback, and watermarke
 ### Start with Docker
 
 ```bash
+git clone https://gitlab.duthu.net/523h0054/qrattendance.git
+cd qrattendance
 docker compose up -d
 ```
 
@@ -95,7 +103,13 @@ See more details in [docs/erd-relationships.md](docs/erd-relationships.md)
 - **Domain/HTTPS**: Make sure DNS for `qrattendance.xyz` (or your domain) points to the correct IP and SSL certificates are valid
 - **GPS/Camera**: Requires HTTPS (domain with SSL) and appropriate permissions on mobile browsers
 
+### Dừng ứng dụng
+
+```bash
+docker compose down            # Dừng, giữ lại dữ liệu
+docker compose down -v         # Dừng và xóa database
+```
+
 ## License
 
-MIT MIT MIT MIT MIT
-NBM TETS
+MIT
