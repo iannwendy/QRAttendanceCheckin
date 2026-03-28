@@ -37,30 +37,6 @@ Services:
 - `backend`: NestJS API (port 8080)
 - `frontend`: React app (port 3000)
 
-### Production Deployment (VPS / domain)
-
-1. Copy the sample production config:
-   ```bash
-   cp env.production.ready .env.production
-   ```
-2. Edit `.env.production` with your own secure values:
-   - `POSTGRES_*`, `JWT_SECRET`: change to strong secrets, known only internally
-   - `FRONTEND_URL=https://qrattendance.xyz` (or your official domain)
-   - `VITE_API_BASE=https://qrattendance.xyz/api` (or your public backend endpoint)
-3. Start the production stack:
-   ```bash
-   docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
-   ```
-4. Verify after deployment:
-   - Frontend: `curl -I https://qrattendance.xyz`
-   - Backend health: `curl -I https://qrattendance.xyz/api/health`
-5. If you use a reverse proxy/Nginx, see `docs/CAU_HINH_DOMAIN_HTTPS.md` for enabling HTTPS on your domain.
-
-Services (docker-compose.prod.yml):
-- `db`: PostgreSQL (port 5432)
-- `backend`: NestJS API (port `${BACKEND_PORT:-8080}`)
-- `frontend`: React build (port 3000 → 80 inside container, usually proxied via Nginx)
-
 ## Default Accounts
 
 - **Admin**: `admin` / `pass123`
@@ -96,12 +72,6 @@ Services (docker-compose.prod.yml):
 ![ERD](source_old/docs/erd.png)
 
 See more details in [source_old/docs/erd-relationships.md](source_old/docs/erd-relationships.md)
-
-## Troubleshooting
-
-- **Database**: Ensure `db` container is running: `docker ps`
-- **Domain/HTTPS**: Make sure DNS for `qrattendance.xyz` (or your domain) points to the correct IP and SSL certificates are valid
-- **GPS/Camera**: Requires HTTPS (domain with SSL) and appropriate permissions on mobile browsers
 
 ### Stop the Application
 
