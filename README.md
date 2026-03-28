@@ -2,7 +2,7 @@
 
 A QR-based attendance system with GPS verification, OTP fallback, and watermarked photos.
 
-![Demo](docs/demo.png)
+![Demo](source_old/docs/demo.png)
 
 ## Truy cập dự án
 
@@ -93,9 +93,9 @@ Services (docker-compose.prod.yml):
 
 ## Database ERD
 
-![ERD](docs/erd.png)
+![ERD](source_old/docs/erd.png)
 
-See more details in [docs/erd-relationships.md](docs/erd-relationships.md)
+See more details in [source_old/docs/erd-relationships.md](source_old/docs/erd-relationships.md)
 
 ## Troubleshooting
 
@@ -103,11 +103,11 @@ See more details in [docs/erd-relationships.md](docs/erd-relationships.md)
 - **Domain/HTTPS**: Make sure DNS for `qrattendance.xyz` (or your domain) points to the correct IP and SSL certificates are valid
 - **GPS/Camera**: Requires HTTPS (domain with SSL) and appropriate permissions on mobile browsers
 
-### Dừng ứng dụng
+### Stop the Application
 
 ```bash
-docker compose down            # Dừng, giữ lại dữ liệu
-docker compose down -v         # Dừng và xóa database
+docker compose down            # Stop, keep data
+docker compose down -v         # Stop and delete database
 ```
 
 ## License
