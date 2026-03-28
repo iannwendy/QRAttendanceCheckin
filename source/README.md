@@ -2,7 +2,13 @@
 
 A QR-based attendance system with GPS verification, OTP fallback, and watermarked photos.
 
-![Demo](docs/demo.png)
+![Demo](source_old/docs/demo.png)
+
+## Truy cập dự án
+
+- **Trang web**: http://qrattendance.xyz
+- **Backend API**: http://qrattendance.xyz:8080
+- **Health check**: http://qrattendance.xyz:8080/health
 
 ## Architecture
 
@@ -21,6 +27,8 @@ A QR-based attendance system with GPS verification, OTP fallback, and watermarke
 ### Start with Docker
 
 ```bash
+git clone https://gitlab.duthu.net/523h0054/qrattendance.git
+cd qrattendance
 docker compose up -d
 ```
 
@@ -28,30 +36,6 @@ Services:
 - `db`: PostgreSQL (port 5433 on host)
 - `backend`: NestJS API (port 8080)
 - `frontend`: React app (port 3000)
-
-### Production Deployment (VPS / domain)
-
-1. Copy the sample production config:
-   ```bash
-   cp env.production.ready .env.production
-   ```
-2. Edit `.env.production` with your own secure values:
-   - `POSTGRES_*`, `JWT_SECRET`: change to strong secrets, known only internally
-   - `FRONTEND_URL=https://qrattendance.xyz` (or your official domain)
-   - `VITE_API_BASE=https://qrattendance.xyz/api` (or your public backend endpoint)
-3. Start the production stack:
-   ```bash
-   docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
-   ```
-4. Verify after deployment:
-   - Frontend: `curl -I https://qrattendance.xyz`
-   - Backend health: `curl -I https://qrattendance.xyz/api/health`
-5. If you use a reverse proxy/Nginx, see `docs/CAU_HINH_DOMAIN_HTTPS.md` for enabling HTTPS on your domain.
-
-Services (docker-compose.prod.yml):
-- `db`: PostgreSQL (port 5432)
-- `backend`: NestJS API (port `${BACKEND_PORT:-8080}`)
-- `frontend`: React build (port 3000 → 80 inside container, usually proxied via Nginx)
 
 ## Default Accounts
 
@@ -85,17 +69,17 @@ Services (docker-compose.prod.yml):
 
 ## Database ERD
 
-![ERD](docs/erd.png)
+![ERD](source_old/docs/erd.png)
 
-See more details in [docs/erd-relationships.md](docs/erd-relationships.md)
+See more details in [source_old/docs/erd-relationships.md](source_old/docs/erd-relationships.md)
 
-## Troubleshooting
+### Stop the Application
 
-- **Database**: Ensure `db` container is running: `docker ps`
-- **Domain/HTTPS**: Make sure DNS for `qrattendance.xyz` (or your domain) points to the correct IP and SSL certificates are valid
-- **GPS/Camera**: Requires HTTPS (domain with SSL) and appropriate permissions on mobile browsers
+```bash
+docker compose down            # Stop, keep data
+docker compose down -v         # Stop and delete database
+```
 
 ## License
 
-MIT MIT MIT MIT MIT
-NBM TETS
+MIT
