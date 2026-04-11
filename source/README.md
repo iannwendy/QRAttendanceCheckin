@@ -1,6 +1,6 @@
 # QR Attendance System
 
-A QR-based attendance system with GPS verification, OTP fallback, and watermarked photos.
+A QR-based attendance system with GPS verification, OTP fallback, and watermarked photos — built for educational environments.
 
 ![Demo](source_old/docs/demo.png)
 
@@ -54,7 +54,7 @@ Services:
 - Manage classes and sessions
 - Create sessions with human-friendly public codes (`publicCode`)
 - Auto-rotating QR every 60s, OTP every 30s
-- View attendance list and evidence photos
+- View attendance list, student photos, and evidence
 - Edit and delete sessions
 
 ## Core APIs
